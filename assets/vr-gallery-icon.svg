@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">VR Gallery Icon</title>
+  <desc id="desc">Museum arch with a framed painting.</desc>
+  <rect width="512" height="512" rx="96" fill="#e7e3de" />
+  <path
+    d="M96 392h320v32H96zm36-28V212c0-77.32 46.43-124 124-124s124 46.68 124 124v152h-32V216c0-60.62-33.94-96-92-96s-92 35.38-92 96v148z"
+    fill="#3b3129"
+  />
+  <rect x="176" y="188" width="160" height="148" rx="16" fill="#ffffff" stroke="#3b3129" stroke-width="18" />
+  <rect x="202" y="214" width="108" height="96" rx="10" fill="#8fa8a4" />
+  <path d="M214 292l34-42 28 24 18-16 16 34z" fill="#36545f" />
+  <circle cx="286" cy="236" r="10" fill="#f1d06d" />
+</svg>
