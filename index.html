@@ -259,6 +259,12 @@
       let easterEggTapCount = 0;
       let easterEggLastTapAt = 0;
       let easterEggAudio = null;
+      let easterEggFeedbackGroup = null;
+      let easterEggFeedbackTime = 0;
+      const EASTER_EGG_FEEDBACK = {
+        duration: 0.35, // seconds
+        maxScale: 1.2,
+      };
 
       const ARTWORKS = [
         {
@@ -1068,6 +1074,17 @@
         updateDesktopMovement(delta);
         updateMovement(delta);
 
+        // Pulsing feedback when the easter egg audio plays.
+        if (easterEggFeedbackTime > 0 && easterEggFeedbackGroup) {
+          easterEggFeedbackTime = Math.max(0, easterEggFeedbackTime - delta);
+          const t = easterEggFeedbackTime / EASTER_EGG_FEEDBACK.duration;
+          const scale = 1 + (EASTER_EGG_FEEDBACK.maxScale - 1) * t;
+          easterEggFeedbackGroup.scale.set(scale, scale, scale);
+          if (easterEggFeedbackTime === 0) {
+            easterEggFeedbackGroup.scale.set(1, 1, 1);
+          }
+        }
+
         camera.getWorldPosition(tmpCamPos);
 
         for (const painting of paintings) {
@@ -1532,6 +1549,7 @@
       function playEasterEggAudio() {
         const audio = getEasterEggAudio();
         audio.currentTime = 0;
+        easterEggFeedbackTime = EASTER_EGG_FEEDBACK.duration;
         audio
           .play()
           .catch((error) => console.warn("Failed to play easter egg audio", error));
@@ -1979,22 +1997,16 @@
         face.position.z = 0.001;
         group.add(face);
 
-        // In VR, the info card texture is not directly interactable, so
-        // add a transparent hit area over the audio badge to trigger sound.
-        if (art.title === EASTER_EGG.paintingTitle && art.hasAudioGuide) {
-          const badgeWidth = (212 / 1024) * (width * 0.96);
-          const badgeHeight = (72 / 648) * (height * 0.94);
-          const badgeX = -width * 0.96 / 2 + (760 / 1024) * (width * 0.96) + badgeWidth / 2;
-          const badgeY = height * 0.94 / 2 - (42 / 648) * (height * 0.94) - badgeHeight / 2;
+        // Make the info card face clickable in VR so users can tap the badge.
+        // The raycast checks `userData.audioBadge` and plays the audio.
+        if (art.hasAudioGuide) {
+          face.userData.audioBadge = true;
+          clickableObjects.push(face);
+        }
 
-          const badgeHit = new THREE.Mesh(
-            new THREE.PlaneGeometry(badgeWidth, badgeHeight),
-            new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 })
-          );
-          badgeHit.position.set(badgeX, badgeY, 0.002);
-          badgeHit.userData.audioBadge = true;
-          group.add(badgeHit);
-          clickableObjects.push(badgeHit);
+        // Keep a reference to pulse the info card when the audio plays.
+        if (art.title === EASTER_EGG.paintingTitle && art.hasAudioGuide) {
+          easterEggFeedbackGroup = group;
         }
 
         return {
