@@ -1557,11 +1557,43 @@
 
       function playEasterEggAudio() {
         const audio = getEasterEggAudio();
-        audio.currentTime = 0;
+        // Some browsers / platforms (Quest Browser, older WebView engines) do not
+        // support the m4a/AAC container. In that case `audio.play()` may throw
+        // NotSupportedError "element has no supported sources".
+        // We'll avoid that error by checking canPlayType first and falling back
+        // to a simple beep when needed.
+        const canPlay = typeof audio.canPlayType === "function" &&
+          (audio.canPlayType("audio/mp4; codecs=\"mp4a.40.2\"") ||
+            audio.canPlayType("audio/mpeg") ||
+            audio.canPlayType("audio/ogg"));
+
         easterEggFeedbackTime = EASTER_EGG_FEEDBACK.duration;
+
+        if (!canPlay) {
+          playEasterEggBeep();
+          return;
+        }
+
+        audio.currentTime = 0;
         audio
           .play()
           .catch((error) => console.warn("Failed to play easter egg audio", error));
+      }
+
+      function playEasterEggBeep() {
+        if (!window.AudioContext && !window.webkitAudioContext) return;
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = 440;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.15, ctx.currentTime + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.22);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.22);
       }
 
       function registerEasterEggTap(now = performance.now()) {
