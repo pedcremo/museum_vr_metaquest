@@ -1471,6 +1471,12 @@
       }
 
       function handleInteractiveHit(object) {
+        const audioBadgeTarget = findAncestorWithUserDataKey(object, "audioBadge");
+        if (audioBadgeTarget) {
+          playEasterEggAudio();
+          return true;
+        }
+
         if (handleSwitchHit(object)) return true;
         if (handleArtworkActionHit(object)) return true;
         return handlePaintingHit(object);
@@ -1521,6 +1527,14 @@
           easterEggAudio.preload = "auto";
         }
         return easterEggAudio;
+      }
+
+      function playEasterEggAudio() {
+        const audio = getEasterEggAudio();
+        audio.currentTime = 0;
+        audio
+          .play()
+          .catch((error) => console.warn("Failed to play easter egg audio", error));
       }
 
       function registerEasterEggTap(now = performance.now()) {
@@ -1964,6 +1978,24 @@
         );
         face.position.z = 0.001;
         group.add(face);
+
+        // In VR, the info card texture is not directly interactable, so
+        // add a transparent hit area over the audio badge to trigger sound.
+        if (art.title === EASTER_EGG.paintingTitle && art.hasAudioGuide) {
+          const badgeWidth = (212 / 1024) * (width * 0.96);
+          const badgeHeight = (72 / 648) * (height * 0.94);
+          const badgeX = -width * 0.96 / 2 + (760 / 1024) * (width * 0.96) + badgeWidth / 2;
+          const badgeY = height * 0.94 / 2 - (42 / 648) * (height * 0.94) - badgeHeight / 2;
+
+          const badgeHit = new THREE.Mesh(
+            new THREE.PlaneGeometry(badgeWidth, badgeHeight),
+            new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 })
+          );
+          badgeHit.position.set(badgeX, badgeY, 0.002);
+          badgeHit.userData.audioBadge = true;
+          group.add(badgeHit);
+          clickableObjects.push(badgeHit);
+        }
 
         return {
           group,
