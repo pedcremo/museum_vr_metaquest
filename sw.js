@@ -42,6 +42,12 @@ self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return;
 
+  // Avoid interfering with audio playback requests, which can be sensitive to
+  // caching/response corruption in some browsers (e.g. Quest Browser).
+  if (request.destination === "audio" || request.url.endsWith(".m4a") || request.url.endsWith(".mp3") || request.url.endsWith(".ogg")) {
+    return;
+  }
+
   const url = new URL(request.url);
   const shouldHandle = request.mode === "navigate" || url.origin === self.location.origin || url.origin === "https://unpkg.com";
   if (!shouldHandle) return;
