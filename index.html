@@ -1109,8 +1109,17 @@
 
       window.addEventListener("pointerdown", (event) => {
         if (renderer.xr.isPresenting) return;
-        pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
-        pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+        // When pointer lock is active, clientX/Y are not reliable. Use the center
+        // of the view instead so clicks correspond to where you're looking.
+        if (pointerLocked) {
+          pointer.x = 0;
+          pointer.y = 0;
+        } else {
+          pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
+          pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        }
+
         raycaster.setFromCamera(pointer, camera);
         raycaster.far = Infinity;
         const hits = raycaster.intersectObjects(clickableObjects, true);
