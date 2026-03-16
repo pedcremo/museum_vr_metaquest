@@ -1773,6 +1773,10 @@
             return hit;
           }
 
+          if (findAncestorWithUserDataKey(hit.object, "audioBadge")) {
+            return hit;
+          }
+
           if (findAncestorWithUserDataKey(hit.object, "paintingHitData")) {
             return hit;
           }
@@ -2524,12 +2528,12 @@
       function onSelect(event) {
         console.log("Select triggered");
         const controller = event.target;
-        // Visual feedback: green cube at controller position
+        // Visual feedback: green cube at controller world position
         const feedbackCube = new THREE.Mesh(
           new THREE.BoxGeometry(0.1, 0.1, 0.1),
           new THREE.MeshBasicMaterial({ color: 0x00ff00 })
         );
-        feedbackCube.position.copy(controller.position);
+        feedbackCube.position.copy(controller.getWorldPosition(new THREE.Vector3()));
         scene.add(feedbackCube);
         setTimeout(() => scene.remove(feedbackCube), 1000);
         tempMatrix.identity().extractRotation(controller.matrixWorld);
