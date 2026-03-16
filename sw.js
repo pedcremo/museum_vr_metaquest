@@ -1,4 +1,5 @@
-const CACHE_NAME = "vr-gallery-shell-v1";
+// Bump cache name when changing service worker logic to force clients to update.
+const CACHE_NAME = "vr-gallery-shell-v2";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -42,9 +43,25 @@ self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return;
 
-  // Avoid interfering with audio playback requests, which can be sensitive to
-  // caching/response corruption in some browsers (e.g. Quest Browser).
-  if (request.destination === "audio" || request.url.endsWith(".m4a") || request.url.endsWith(".mp3") || request.url.endsWith(".ogg")) {
+  // Avoid interfering with audio and video playback requests, and any
+  // requests using `Range` headers (partial content). Range requests are
+  // commonly used by media players and can break if intercepted by the
+  // service worker. Let the browser handle them directly.
+  if (
+    request.destination === "audio" ||
+    request.destination === "video" ||
+    request.url.endsWith(".m4a") ||
+    request.url.endsWith(".mp3") ||
+    request.url.endsWith(".ogg") ||
+    request.url.endsWith(".mp4") ||
+    request.url.endsWith(".webm")
+  ) {
+    return;
+  }
+
+  // Bypass the service worker for requests that include a Range header.
+  // Range requests are used to stream or resume media and should go to network.
+  if (request.headers && request.headers.get && request.headers.get("range")) {
     return;
   }
 
