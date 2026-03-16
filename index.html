@@ -276,20 +276,29 @@
           vrVideoTexture.format = THREE.RGBAFormat;
 
           const aspect = 16 / 9;
-          const height = 2; // larger for testing
+          const height = 1.2; // meters
           const width = height * aspect;
 
           const geometry = new THREE.PlaneGeometry(width, height);
-          // Temporary: solid red material for debugging
-          const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+          // const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+          const material = new THREE.MeshBasicMaterial({ map: vrVideoTexture, toneMapped: false });
           const screen = new THREE.Mesh(geometry, material);
           screen.renderOrder = 999;
 
           vrVideoGroup = new THREE.Group();
           vrVideoGroup.add(screen);
 
-          // Temporary: fixed position for testing
-          vrVideoGroup.position.set(0, 1.6, 2);
+          // position the screen a short distance in front of the camera
+          const offset = new THREE.Vector3(0, 0.1, -1.8);
+          const worldPos = new THREE.Vector3();
+          camera.getWorldPosition(worldPos);
+          const worldQuat = camera.getWorldQuaternion(new THREE.Quaternion());
+
+          vrVideoGroup.position.copy(worldPos);
+          vrVideoGroup.quaternion.copy(worldQuat);
+          // move forward in camera space
+          vrVideoGroup.translateZ(offset.z);
+          vrVideoGroup.translateY(offset.y);
 
           scene.add(vrVideoGroup);
 
