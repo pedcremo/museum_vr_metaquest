@@ -1626,6 +1626,7 @@
         const audioBadgeTarget = findAncestorWithUserDataKey(object, "audioBadge");
         if (audioBadgeTarget) {
           const title = audioBadgeTarget.userData.paintingTitle;
+          console.log("Audio badge hit for", title);
           if (title && VIDEO_GUIDES[title]) {
             showVideoPlayer(VIDEO_GUIDES[title], title);
             return true;
@@ -2513,6 +2514,7 @@
       }
 
       function onSelectStart(event) {
+        console.log("Select start triggered");
         const controller = event.target;
         tempMatrix.identity().extractRotation(controller.matrixWorld);
         raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
