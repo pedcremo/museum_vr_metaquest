@@ -237,7 +237,15 @@
         "Girl with a Pearl Earring": "assets/audioguides/joven_de_la_perla.mp4",
       };
 
+      // VR video screen state
+      let vrVideoGroup = null;
+      let vrVideoElement = null;
+      let vrVideoTexture = null;
+
       function showVideoPlayer(src, title) {
+        if (renderer.xr && renderer.xr.isPresenting) {
+          return showVideoPlayerInVr(src, title);
+        }
         try {
           const overlay = document.getElementById("video-overlay");
           const player = document.getElementById("video-player");
@@ -248,17 +256,101 @@
           overlay.style.display = "flex";
           overlay.setAttribute("aria-hidden", "false");
           // attempt autoplay, but playback may require user gesture
-          player.play().catch(() => {
-            // ignore play errors (autoplay restrictions)
-          });
+          player.play().catch(() => {});
         } catch (e) {
           console.warn("showVideoPlayer error", e);
+        }
+      }
+
+      function showVideoPlayerInVr(src, title) {
+        try {
+          // If already showing, replace source
+          if (vrVideoElement) {
+            vrVideoElement.pause();
+            vrVideoElement.src = src;
+            vrVideoElement.play().catch(() => {});
+            return;
+          }
+
+          vrVideoElement = document.createElement("video");
+          vrVideoElement.crossOrigin = "anonymous";
+          vrVideoElement.src = src;
+          vrVideoElement.loop = false;
+          vrVideoElement.playsInline = true;
+          vrVideoElement.muted = false;
+          vrVideoElement.preload = "auto";
+
+          vrVideoTexture = new THREE.VideoTexture(vrVideoElement);
+          vrVideoTexture.encoding = THREE.sRGBEncoding;
+          vrVideoTexture.minFilter = THREE.LinearFilter;
+          vrVideoTexture.magFilter = THREE.LinearFilter;
+          vrVideoTexture.format = THREE.RGBAFormat;
+
+          const aspect = 16 / 9;
+          const height = 1.2; // meters
+          const width = height * aspect;
+
+          const geometry = new THREE.PlaneGeometry(width, height);
+          const material = new THREE.MeshBasicMaterial({ map: vrVideoTexture, toneMapped: false });
+          const screen = new THREE.Mesh(geometry, material);
+          screen.renderOrder = 999;
+
+          vrVideoGroup = new THREE.Group();
+          vrVideoGroup.add(screen);
+
+          // position the screen a short distance in front of the camera
+          const offset = new THREE.Vector3(0, 0.1, -1.8);
+          const worldPos = new THREE.Vector3();
+          camera.getWorldPosition(worldPos);
+          const worldQuat = camera.getWorldQuaternion(new THREE.Quaternion());
+
+          vrVideoGroup.position.copy(worldPos);
+          vrVideoGroup.quaternion.copy(worldQuat);
+          // move forward in camera space
+          vrVideoGroup.translateZ(offset.z);
+          vrVideoGroup.translateY(offset.y);
+
+          scene.add(vrVideoGroup);
+
+          vrVideoElement.play().catch((e) => {
+            console.warn("VR video play failed", e);
+          });
+
+          // stop and cleanup when the video ends
+          vrVideoElement.addEventListener("ended", () => {
+            closeVideoPlayer();
+          });
+        } catch (e) {
+          console.warn("showVideoPlayerInVr error", e);
         }
       }
 
       function closeVideoPlayer() {
         const overlay = document.getElementById("video-overlay");
         const player = document.getElementById("video-player");
+        if (renderer.xr && renderer.xr.isPresenting) {
+          // remove VR screen
+          try {
+            if (vrVideoElement) {
+              vrVideoElement.pause();
+              vrVideoElement.removeAttribute("src");
+              vrVideoElement.load();
+            }
+            if (vrVideoTexture) {
+              vrVideoTexture.dispose();
+              vrVideoTexture = null;
+            }
+            if (vrVideoGroup) {
+              scene.remove(vrVideoGroup);
+              vrVideoGroup = null;
+            }
+            vrVideoElement = null;
+          } catch (e) {
+            console.warn("Error closing VR video", e);
+          }
+          return;
+        }
+
         if (!overlay || !player) return;
         player.pause();
         player.removeAttribute("src");
@@ -2493,11 +2585,27 @@
       }
 
       function onSqueezeStart(event) {
-        if (!renderer.xr.isPresenting) return;
-        if (event.target !== teleportController) return;
-        if (!teleportMarker || !teleportMarker.visible) return;
-        if (!isTeleportLocationValid(teleportTarget)) return;
-        teleportTo(teleportTarget);
+        // If teleport controller and marker visible -> teleport (existing behaviour)
+        if (renderer.xr.isPresenting && event.target === teleportController) {
+          if (!teleportMarker || !teleportMarker.visible) return;
+          if (!isTeleportLocationValid(teleportTarget)) return;
+          teleportTo(teleportTarget);
+          return;
+        }
+
+        // Otherwise, treat squeeze as an interaction (so grip can also trigger badges)
+        if (renderer.xr.isPresenting) {
+          const controller = event.target;
+          tempMatrix.identity().extractRotation(controller.matrixWorld);
+          raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+          raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+          raycaster.far = INTERACTION.maxDistance;
+          const hits = raycaster.intersectObjects(clickableObjects, true);
+          const hit = pickInteractiveHit(hits);
+          if (hit) {
+            handleInteractiveHit(hit.object);
+          }
+        }
       }
 
       function addDoorAndWindows() {
