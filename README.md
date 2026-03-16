@@ -1,6 +1,7 @@
 # VR Gallery (WebXR)
 https://pedcremo.github.io/museum_vr_metaquest/
 
+
 Pequeña galería VR en WebXR con navegación en Quest y escritorio, iluminación por obra y carga de texturas por LOD.
 
 **Propósito**
@@ -70,7 +71,7 @@ Notas:
 - Un único PC puede servir la misma URL a varias Quest a la vez si están en la misma red.
 - La UI de esta app mostrará `HTTPS requerido` si la página no está en contexto seguro.
 
-**Despliegue automático en GitHub Pages**
+**Despliegue automático en GitHub Pages SOLUCIÓN SENCILLA*
 - Sube tu proyecto a un repositorio público en GitHub.
 - Crea la carpeta `.github/workflows/` y agrega un archivo `deploy.yml` con el siguiente contenido para automatizar el despliegue:
 
