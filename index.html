@@ -97,6 +97,45 @@
         background: rgba(246, 234, 229, 0.92);
         color: #7a3427;
       }
+      /* Video overlay/player styles */
+      #video-overlay {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0,0,0,0.65);
+        z-index: 9999;
+      }
+      #video-container {
+        width: min(1100px, 95%);
+        max-height: 90vh;
+        background: #000;
+        padding: 12px;
+        border-radius: 10px;
+        box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+        position: relative;
+      }
+      #video-player {
+        width: 100%;
+        height: auto;
+        max-height: calc(90vh - 48px);
+        background: #000;
+        display: block;
+      }
+      #video-close {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        z-index: 10;
+        background: rgba(255,255,255,0.95);
+        border: none;
+        border-radius: 999px;
+        width: 36px;
+        height: 36px;
+        font-size: 18px;
+        cursor: pointer;
+      }
     </style>
   </head>
   <body>
@@ -112,6 +151,14 @@
       <div id="launch-note" aria-live="polite"></div>
     </div>
     <div id="desktop-status" data-active="true" aria-live="polite">Vuelo activado</div>
+
+    <!-- Video player overlay -->
+    <div id="video-overlay" aria-hidden="true">
+      <div id="video-container">
+        <button id="video-close" type="button" aria-label="Cerrar vídeo">×</button>
+        <video id="video-player" controls playsinline webkit-playsinline></video>
+      </div>
+    </div>
 
     <script type="importmap">
       {
@@ -184,6 +231,52 @@
         tapCount: 7,
         maxGapMs: 1400,
       };
+      // Map painting titles to video guide files (relative to project root)
+      const VIDEO_GUIDES = {
+        "The School of Athens": "assets/audioguides/escuela_de_atenas.mp4",
+        "Girl with a Pearl Earring": "assets/audioguides/joven_de_la_perla.mp4",
+      };
+
+      function showVideoPlayer(src, title) {
+        try {
+          const overlay = document.getElementById("video-overlay");
+          const player = document.getElementById("video-player");
+          if (!overlay || !player) return;
+          player.pause();
+          player.src = src;
+          player.setAttribute("aria-label", title || "Video guía");
+          overlay.style.display = "flex";
+          overlay.setAttribute("aria-hidden", "false");
+          // attempt autoplay, but playback may require user gesture
+          player.play().catch(() => {
+            // ignore play errors (autoplay restrictions)
+          });
+        } catch (e) {
+          console.warn("showVideoPlayer error", e);
+        }
+      }
+
+      function closeVideoPlayer() {
+        const overlay = document.getElementById("video-overlay");
+        const player = document.getElementById("video-player");
+        if (!overlay || !player) return;
+        player.pause();
+        player.removeAttribute("src");
+        player.load();
+        overlay.style.display = "none";
+        overlay.setAttribute("aria-hidden", "true");
+      }
+
+      // Close button hookup
+      window.addEventListener("DOMContentLoaded", () => {
+        const btn = document.getElementById("video-close");
+        if (btn) btn.addEventListener("click", closeVideoPlayer);
+        // close when clicking outside the container
+        const overlay = document.getElementById("video-overlay");
+        if (overlay) overlay.addEventListener("click", (ev) => {
+          if (ev.target === overlay) closeVideoPlayer();
+        });
+      });
       const VIEWING_SPOT = {
         minDistance: 1.05,
         maxDistance: 3.2,
@@ -333,7 +426,7 @@
           year: "1509-1511",
           synopsis:
             "Arquitectura clásica y filosofía dialogan en una composición equilibrada que celebra el conocimiento renacentista.",
-          hasAudioGuide: false,
+          hasAudioGuide: true,
           file: "assets/the_school_of_athens.jpg",
           widthM: 7.7,
           heightM: 5.0,
@@ -1499,6 +1592,17 @@
       function handleInteractiveHit(object) {
         const audioBadgeTarget = findAncestorWithUserDataKey(object, "audioBadge");
         if (audioBadgeTarget) {
+          const title = audioBadgeTarget.userData.paintingTitle;
+          if (title && VIDEO_GUIDES[title]) {
+            showVideoPlayer(VIDEO_GUIDES[title], title);
+            return true;
+          }
+          // If the badge belongs to the easter egg painting, play audio
+          if (title === EASTER_EGG.paintingTitle) {
+            playEasterEggAudio();
+            return true;
+          }
+          // fallback to easter egg audio behaviour if no video found
           playEasterEggAudio();
           return true;
         }
@@ -2043,6 +2147,10 @@
         if (art.hasAudioGuide) {
           face.userData.audioBadge = true;
           clickableObjects.push(face);
+        }
+        if (art.hasAudioGuide) {
+          // attach title so we can find which painting's cartela was clicked
+          face.userData.paintingTitle = art.title;
         }
 
         // Keep a reference to pulse the info card when the audio plays.
