@@ -1627,6 +1627,14 @@
         if (audioBadgeTarget) {
           const title = audioBadgeTarget.userData.paintingTitle;
           console.log("Audio badge hit for", title);
+          // Visual feedback: add a red cube for 1 second
+          const feedbackCube = new THREE.Mesh(
+            new THREE.BoxGeometry(0.1, 0.1, 0.1),
+            new THREE.MeshBasicMaterial({ color: 0xff0000 })
+          );
+          feedbackCube.position.copy(audioBadgeTarget.getWorldPosition(new THREE.Vector3()));
+          scene.add(feedbackCube);
+          setTimeout(() => scene.remove(feedbackCube), 1000);
           if (title && VIDEO_GUIDES[title]) {
             showVideoPlayer(VIDEO_GUIDES[title], title);
             return true;
@@ -2472,7 +2480,7 @@
 
       function setupControllers() {
         const controller1 = renderer.xr.getController(0);
-        controller1.addEventListener("selectstart", onSelectStart);
+        controller1.addEventListener("select", onSelect);
         controller1.addEventListener("squeezestart", onSqueezeStart);
         controller1.addEventListener("connected", (event) => {
           controller1.userData.handedness = event.data.handedness;
@@ -2487,7 +2495,7 @@
         controllers.push(controller1);
 
         const controller2 = renderer.xr.getController(1);
-        controller2.addEventListener("selectstart", onSelectStart);
+        controller2.addEventListener("select", onSelect);
         controller2.addEventListener("squeezestart", onSqueezeStart);
         controller2.addEventListener("connected", (event) => {
           controller2.userData.handedness = event.data.handedness;
@@ -2513,16 +2521,18 @@
         return line;
       }
 
-      function onSelectStart(event) {
-        console.log("Select start triggered");
+      function onSelect(event) {
+        console.log("Select triggered");
         const controller = event.target;
         tempMatrix.identity().extractRotation(controller.matrixWorld);
         raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
         raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
         raycaster.far = INTERACTION.maxDistance;
         const hits = raycaster.intersectObjects(clickableObjects, true);
+        console.log("Hits:", hits.length);
         const hit = pickInteractiveHit(hits);
         if (hit) {
+          console.log("Picked hit:", hit.object.userData);
           handleInteractiveHit(hit.object);
         }
       }
