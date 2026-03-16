@@ -331,7 +331,7 @@
         frontOffset: 0.038,
       };
       const INTERACTION = {
-        maxDistance: 12,
+        maxDistance: 50,
         switchDistance: 2.5,
       };
       const DESKTOP = {
@@ -2524,6 +2524,14 @@
       function onSelect(event) {
         console.log("Select triggered");
         const controller = event.target;
+        // Visual feedback: green cube at controller position
+        const feedbackCube = new THREE.Mesh(
+          new THREE.BoxGeometry(0.1, 0.1, 0.1),
+          new THREE.MeshBasicMaterial({ color: 0x00ff00 })
+        );
+        feedbackCube.position.copy(controller.position);
+        scene.add(feedbackCube);
+        setTimeout(() => scene.remove(feedbackCube), 1000);
         tempMatrix.identity().extractRotation(controller.matrixWorld);
         raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
         raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
