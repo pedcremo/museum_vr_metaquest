@@ -243,15 +243,8 @@
       let vrVideoTexture = null;
 
       function showVideoPlayer(src, title) {
-        // If in VR, exit VR first, then show DOM overlay
         if (renderer.xr && renderer.xr.isPresenting) {
-          const session = renderer.xr.getSession();
-          if (session) {
-            session.end().then(() => {
-              setTimeout(() => showVideoPlayerDom(src, title), 100);
-            });
-            return;
-          }
+          return showVideoPlayerInVr(src, title);
         }
         showVideoPlayerDom(src, title);
       }
@@ -274,6 +267,29 @@
       }
 
       function closeVideoPlayer() {
+        if (renderer.xr && renderer.xr.isPresenting) {
+          // remove VR screen
+          try {
+            if (vrVideoElement) {
+              vrVideoElement.pause();
+              vrVideoElement.removeAttribute("src");
+              vrVideoElement.load();
+            }
+            if (vrVideoTexture) {
+              vrVideoTexture.dispose();
+              vrVideoTexture = null;
+            }
+            if (vrVideoGroup) {
+              scene.remove(vrVideoGroup);
+              vrVideoGroup = null;
+            }
+            vrVideoElement = null;
+          } catch (e) {
+            console.warn("Error closing VR video", e);
+          }
+          return;
+        }
+
         const overlay = document.getElementById("video-overlay");
         const player = document.getElementById("video-player");
         if (!overlay || !player) return;
