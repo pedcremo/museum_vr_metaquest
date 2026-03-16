@@ -249,6 +249,63 @@
         showVideoPlayerDom(src, title);
       }
 
+      function showVideoPlayerInVr(src, title) {
+        try {
+          // If already showing, replace source
+          if (vrVideoElement) {
+            vrVideoElement.pause();
+            vrVideoElement.src = src;
+            vrVideoElement.play().catch((e) => {
+              console.warn("VR video play failed", e);
+            });
+            return;
+          }
+
+          vrVideoElement = document.createElement("video");
+          vrVideoElement.crossOrigin = "anonymous";
+          vrVideoElement.src = src;
+          vrVideoElement.loop = false;
+          vrVideoElement.playsInline = true;
+          vrVideoElement.muted = false;
+          vrVideoElement.preload = "auto";
+
+          vrVideoTexture = new THREE.VideoTexture(vrVideoElement);
+          vrVideoTexture.encoding = THREE.sRGBEncoding;
+          vrVideoTexture.minFilter = THREE.LinearFilter;
+          vrVideoTexture.magFilter = THREE.LinearFilter;
+          vrVideoTexture.format = THREE.RGBAFormat;
+
+          const aspect = 16 / 9;
+          const height = 2; // larger for testing
+          const width = height * aspect;
+
+          const geometry = new THREE.PlaneGeometry(width, height);
+          // Temporary: solid red material for debugging
+          const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+          const screen = new THREE.Mesh(geometry, material);
+          screen.renderOrder = 999;
+
+          vrVideoGroup = new THREE.Group();
+          vrVideoGroup.add(screen);
+
+          // Temporary: fixed position for testing
+          vrVideoGroup.position.set(0, 1.6, 2);
+
+          scene.add(vrVideoGroup);
+
+          vrVideoElement.play().catch((e) => {
+            console.warn("VR video play failed", e);
+          });
+
+          // stop and cleanup when the video ends
+          vrVideoElement.addEventListener("ended", () => {
+            closeVideoPlayer();
+          });
+        } catch (e) {
+          console.warn("showVideoPlayerInVr error", e);
+        }
+      }
+
       function showVideoPlayerDom(src, title) {
         try {
           const overlay = document.getElementById("video-overlay");
