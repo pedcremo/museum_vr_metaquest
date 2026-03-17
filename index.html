@@ -549,8 +549,8 @@
           const buttonWidth = 0.28;
           const buttonHeight = 0.14;
           const buttonRowGap = 0.06;
+          const buttonPitch = buttonWidth + buttonRowGap;
           const buttonRowY = -height / 2 + buttonHeight / 2 + 0.09;
-          const leftButtonX = -width / 2 + buttonWidth / 2 + 0.14;
           const seekBarWidth = width * 0.6;
           const seekBarHeight = 0.09;
           const seekBarY = -height / 2 + 0.31;
@@ -643,15 +643,11 @@
             subtitleSize: 18,
           });
           const closeButton = new THREE.Mesh(
-            new THREE.PlaneGeometry(topButtonWidth, topButtonHeight),
+            new THREE.PlaneGeometry(buttonWidth, buttonHeight),
             closeVisual.material
           );
           closeButton.renderOrder = 1003;
-          closeButton.position.set(
-            width / 2 - topButtonWidth / 2 - 0.08,
-            height / 2 - topButtonHeight / 2 - 0.08,
-            0.01
-          );
+          closeButton.position.set(buttonPitch * 1.5, buttonRowY, 0.01);
           closeButton.userData.vrVideoControl = "close";
 
           const dragVisual = createVrVideoHudMaterial(460, 160, {
@@ -691,7 +687,7 @@
             playPauseVisual.material
           );
           playPauseButton.renderOrder = 1003;
-          playPauseButton.position.set(leftButtonX, buttonRowY, 0.01);
+          playPauseButton.position.set(-buttonPitch * 1.5, buttonRowY, 0.01);
           playPauseButton.userData.vrVideoControl = "playPause";
 
           const stopVisual = createVrVideoHudMaterial(540, 220, {
@@ -709,7 +705,7 @@
             stopVisual.material
           );
           stopButton.renderOrder = 1003;
-          stopButton.position.set(leftButtonX + buttonWidth + buttonRowGap, buttonRowY, 0.01);
+          stopButton.position.set(-buttonPitch * 0.5, buttonRowY, 0.01);
           stopButton.userData.vrVideoControl = "stop";
 
           const recenterVisual = createVrVideoHudMaterial(540, 220, {
@@ -727,11 +723,7 @@
             recenterVisual.material
           );
           recenterButton.renderOrder = 1003;
-          recenterButton.position.set(
-            leftButtonX + (buttonWidth + buttonRowGap) * 2,
-            buttonRowY,
-            0.01
-          );
+          recenterButton.position.set(buttonPitch * 0.5, buttonRowY, 0.01);
           recenterButton.userData.vrVideoControl = "recenter";
 
           const seekBar = new THREE.Mesh(
