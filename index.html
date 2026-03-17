@@ -299,6 +299,16 @@
       let vrVideoGroup = null;
       let vrVideoElement = null;
       let vrVideoTexture = null;
+      let vrVideoPlayPauseButton = null;
+      let vrVideoCloseButton = null;
+      let vrVideoSeekBar = null;
+      let vrVideoSeekFill = null;
+      let vrVideoVolumeBar = null;
+      let vrVideoVolumeFill = null;
+      let vrVideoRecenterButton = null;
+      let vrVideoDragHandle = null;
+      // When the user grips the video screen in VR, this holds the drag state
+      let vrVideoDragState = null;
 
       function showVideoPlayer(src, title) {
         if (renderer.xr && renderer.xr.isPresenting) {
@@ -329,6 +339,8 @@
           vrVideoElement.setAttribute("webkit-playsinline", "");
           vrVideoElement.muted = false;
           vrVideoElement.preload = "auto";
+          vrVideoElement.volume = 1;
+          vrVideoElement.currentTime = 0;
 
           vrVideoTexture = new THREE.VideoTexture(vrVideoElement);
           vrVideoTexture.encoding = THREE.sRGBEncoding;
@@ -346,11 +358,12 @@
           const height = VIDEO_SCREEN.height;
           const width = height * VIDEO_SCREEN.aspect;
 
-          const geometry = new THREE.PlaneGeometry(width, height);
-          const material = new THREE.MeshBasicMaterial({ map: vrVideoTexture, toneMapped: false });
-          const screen = new THREE.Mesh(geometry, material);
+          const screen = new THREE.Mesh(
+            new THREE.PlaneGeometry(width, height),
+            new THREE.MeshBasicMaterial({ map: vrVideoTexture, toneMapped: false })
+          );
           screen.renderOrder = 999;
-          screen.userData.vrVideoControl = "toggle"; // toggle playback when selected
+          screen.userData.vrVideoControl = "toggle"; // tap => toggle play/pause
 
           // Add a small close button in the top-right corner
           const closeSize = 0.16;
@@ -365,12 +378,144 @@
           );
           closeButton.userData.vrVideoControl = "close";
 
+          // Add a play/pause button in the bottom-left corner
+          const playPauseSize = 0.18;
+          const playPauseButton = new THREE.Mesh(
+            new THREE.PlaneGeometry(playPauseSize, playPauseSize),
+            new THREE.MeshBasicMaterial({ color: 0x44ff44 })
+          );
+          playPauseButton.position.set(
+            -width / 2 + playPauseSize / 2 + 0.08,
+            -height / 2 + playPauseSize / 2 + 0.08,
+            0.01
+          );
+          playPauseButton.userData.vrVideoControl = "playPause";
+
+          // Add a recenter button in the top-center
+          const recenterSize = 0.16;
+          const recenterButton = new THREE.Mesh(
+            new THREE.PlaneGeometry(recenterSize, recenterSize),
+            new THREE.MeshBasicMaterial({ color: 0x6666ff })
+          );
+          recenterButton.position.set(0, height / 2 - recenterSize / 2 - 0.12, 0.01);
+          recenterButton.userData.vrVideoControl = "recenter";
+
+          // Seek bar (tappable to seek)
+          const seekBarWidth = width * 0.7;
+          const seekBarHeight = 0.08;
+          const seekBar = new THREE.Mesh(
+            new THREE.PlaneGeometry(seekBarWidth, seekBarHeight),
+            new THREE.MeshBasicMaterial({ color: 0x333333 })
+          );
+          seekBar.position.set(0, -height / 2 + 0.22, 0.01);
+          seekBar.userData.vrVideoControl = "seek";
+          seekBar.userData.barWidth = seekBarWidth;
+          seekBar.userData.barHeight = seekBarHeight;
+
+          const seekFill = new THREE.Mesh(
+            new THREE.PlaneGeometry(seekBarWidth, seekBarHeight),
+            new THREE.MeshBasicMaterial({ color: 0x00ff99 })
+          );
+          seekFill.position.set(-seekBarWidth / 2, 0, 0.02);
+          seekFill.scale.x = 0.01;
+          seekFill.userData.isFill = true;
+
+          // Volume bar (vertical slider)
+          const volumeBarWidth = 0.06;
+          const volumeBarHeight = height * 0.7;
+          const volumeBar = new THREE.Mesh(
+            new THREE.PlaneGeometry(volumeBarWidth, volumeBarHeight),
+            new THREE.MeshBasicMaterial({ color: 0x333333 })
+          );
+          volumeBar.position.set(width / 2 - volumeBarWidth / 2 - 0.06, 0, 0.01);
+          volumeBar.userData.vrVideoControl = "volume";
+          volumeBar.userData.barWidth = volumeBarWidth;
+          volumeBar.userData.barHeight = volumeBarHeight;
+
+          const volumeFill = new THREE.Mesh(
+            new THREE.PlaneGeometry(volumeBarWidth, volumeBarHeight),
+            new THREE.MeshBasicMaterial({ color: 0x44ccff })
+          );
+          volumeFill.position.set(0, -volumeBarHeight / 2, 0.02);
+          volumeFill.scale.y = 0.5;
+          volumeFill.userData.isFill = true;
+
+          // Add a drag handle in the top-left corner (squeeze + move to reposition)
+          const dragSize = 0.14;
+          const dragHandle = new THREE.Mesh(
+            new THREE.PlaneGeometry(dragSize, dragSize),
+            new THREE.MeshBasicMaterial({ color: 0x9999ff })
+          );
+          dragHandle.position.set(
+            -width / 2 + dragSize / 2 + 0.04,
+            height / 2 - dragSize / 2 - 0.04,
+            0.01
+          );
+          dragHandle.userData.vrVideoControl = "drag";
+
           vrVideoGroup = new THREE.Group();
           vrVideoGroup.add(screen);
+          vrVideoGroup.add(seekBar);
+          vrVideoGroup.add(seekFill);
+          vrVideoGroup.add(volumeBar);
+          vrVideoGroup.add(volumeFill);
+          vrVideoGroup.add(recenterButton);
           vrVideoGroup.add(closeButton);
+          vrVideoGroup.add(playPauseButton);
+          vrVideoGroup.add(dragHandle);
+
+          vrVideoPlayPauseButton = playPauseButton;
+          vrVideoCloseButton = closeButton;
+          vrVideoSeekBar = seekBar;
+          vrVideoSeekFill = seekFill;
+          vrVideoVolumeBar = volumeBar;
+          vrVideoVolumeFill = volumeFill;
+          vrVideoRecenterButton = recenterButton;
+          vrVideoDragHandle = dragHandle;
+
+          const updatePlayPauseIndicator = () => {
+            if (vrVideoPlayPauseButton && vrVideoPlayPauseButton.material) {
+              vrVideoPlayPauseButton.material.color.set(
+                vrVideoElement && !vrVideoElement.paused ? 0xffaa00 : 0x44ff44
+              );
+            }
+          };
+
+          const updateSeekFill = () => {
+            if (!vrVideoElement || !vrVideoSeekBar || !vrVideoSeekFill) return;
+            const duration = vrVideoElement.duration || 0;
+            const progress = duration > 0 ? Math.min(1, Math.max(0, vrVideoElement.currentTime / duration)) : 0;
+            const barWidth = vrVideoSeekBar.userData.barWidth;
+            vrVideoSeekFill.scale.x = progress;
+            vrVideoSeekFill.position.x = -barWidth / 2 + (barWidth * progress) / 2;
+          };
+
+          const updateVolumeFill = () => {
+            if (!vrVideoElement || !vrVideoVolumeBar || !vrVideoVolumeFill) return;
+            const vol = Math.min(1, Math.max(0, vrVideoElement.volume));
+            const barHeight = vrVideoVolumeBar.userData.barHeight;
+            vrVideoVolumeFill.scale.y = vol;
+            vrVideoVolumeFill.position.y = -barHeight / 2 + (barHeight * vol) / 2;
+          };
+
+          vrVideoElement.addEventListener("play", updatePlayPauseIndicator);
+          vrVideoElement.addEventListener("pause", updatePlayPauseIndicator);
+          vrVideoElement.addEventListener("timeupdate", updateSeekFill);
+          vrVideoElement.addEventListener("volumechange", updateVolumeFill);
+          updatePlayPauseIndicator();
+          updateSeekFill();
+          updateVolumeFill();
 
           if (clickableObjects && Array.isArray(clickableObjects)) {
-            clickableObjects.push(screen, closeButton);
+            clickableObjects.push(
+              screen,
+              seekBar,
+              volumeBar,
+              recenterButton,
+              closeButton,
+              playPauseButton,
+              dragHandle
+            );
           }
 
           // position the screen a comfortable distance in front of the camera
@@ -448,6 +593,15 @@
             }
 
             vrVideoElement = null;
+            vrVideoPlayPauseButton = null;
+            vrVideoCloseButton = null;
+            vrVideoSeekBar = null;
+            vrVideoSeekFill = null;
+            vrVideoVolumeBar = null;
+            vrVideoVolumeFill = null;
+            vrVideoRecenterButton = null;
+            vrVideoDragHandle = null;
+            vrVideoDragState = null;
           } catch (e) {
             console.warn("Error closing VR video", e);
           }
@@ -1451,6 +1605,33 @@
 
         camera.getWorldPosition(tmpCamPos);
 
+        // If user is dragging the VR video player, update its position based on controller movement
+        if (vrVideoDragState && vrVideoGroup) {
+          const controllerPos = new THREE.Vector3();
+          vrVideoDragState.controller.getWorldPosition(controllerPos);
+          const targetPos = controllerPos.clone().add(vrVideoDragState.offset);
+          vrVideoGroup.position.copy(targetPos);
+          // Keep the video facing the camera while dragging
+          vrVideoGroup.lookAt(camera.position);
+        }
+
+        // Update VR video UI indicators (seek/volume)
+        if (vrVideoElement) {
+          if (vrVideoSeekBar && vrVideoSeekFill) {
+            const duration = vrVideoElement.duration || 0;
+            const progress = duration > 0 ? Math.min(1, Math.max(0, vrVideoElement.currentTime / duration)) : 0;
+            const barWidth = vrVideoSeekBar.userData.barWidth;
+            vrVideoSeekFill.scale.x = progress;
+            vrVideoSeekFill.position.x = -barWidth / 2 + (barWidth * progress) / 2;
+          }
+          if (vrVideoVolumeBar && vrVideoVolumeFill) {
+            const vol = Math.min(1, Math.max(0, vrVideoElement.volume));
+            const barHeight = vrVideoVolumeBar.userData.barHeight;
+            vrVideoVolumeFill.scale.y = vol;
+            vrVideoVolumeFill.position.y = -barHeight / 2 + (barHeight * vol) / 2;
+          }
+        }
+
         for (const painting of paintings) {
           painting.group.getWorldPosition(tmpVec);
           const dist = tmpVec.distanceTo(tmpCamPos);
@@ -1488,7 +1669,7 @@
         raycaster.far = Infinity;
         const hits = raycaster.intersectObjects(clickableObjects, true);
         if (hits.length) {
-          handleInteractiveHit(hits[0].object);
+          handleInteractiveHit(hits[0]);
         }
       });
 
@@ -1860,18 +2041,51 @@
         return target;
       }
 
-      function handleInteractiveHit(object) {
+      function handleInteractiveHit(hit) {
+        const object = hit.object;
         const vrControlTarget = findAncestorWithUserDataKey(object, "vrVideoControl");
         if (vrControlTarget) {
           const action = vrControlTarget.userData.vrVideoControl;
-          if (action === "toggle" && vrVideoElement) {
+          if ((action === "toggle" || action === "playPause") && vrVideoElement) {
             if (vrVideoElement.paused) {
               vrVideoElement.play().catch(() => {});
             } else {
               vrVideoElement.pause();
             }
+            if (vrVideoPlayPauseButton && vrVideoPlayPauseButton.material) {
+              vrVideoPlayPauseButton.material.color.set(
+                vrVideoElement.paused ? 0x44ff44 : 0xffaa00
+              );
+            }
           } else if (action === "close") {
             closeVideoPlayer();
+          } else if (action === "recenter") {
+            if (vrVideoGroup) {
+              const forward = new THREE.Vector3(0, 0, -1)
+                .applyQuaternion(camera.quaternion)
+                .setY(0)
+                .normalize();
+              const targetPos = camera.position
+                .clone()
+                .addScaledVector(forward, 2.6)
+                .add(new THREE.Vector3(0, 0.1, 0));
+              vrVideoGroup.position.copy(targetPos);
+              vrVideoGroup.lookAt(camera.position);
+            }
+          } else if (action === "seek" && vrVideoElement && vrVideoSeekBar) {
+            const local = hit.point.clone();
+            vrVideoSeekBar.worldToLocal(local);
+            const barWidth = vrVideoSeekBar.userData.barWidth;
+            const t = Math.min(1, Math.max(0, (local.x + barWidth / 2) / barWidth));
+            if (vrVideoElement.duration) {
+              vrVideoElement.currentTime = vrVideoElement.duration * t;
+            }
+          } else if (action === "volume" && vrVideoElement && vrVideoVolumeBar) {
+            const local = hit.point.clone();
+            vrVideoVolumeBar.worldToLocal(local);
+            const barHeight = vrVideoVolumeBar.userData.barHeight;
+            const v = Math.min(1, Math.max(0, (local.y + barHeight / 2) / barHeight));
+            vrVideoElement.volume = v;
           }
           return true;
         }
@@ -2017,6 +2231,11 @@
 
       function pickInteractiveHit(hits) {
         for (const hit of hits) {
+          // Allow video UI to be interacted with in VR
+          if (findAncestorWithUserDataKey(hit.object, "vrVideoControl")) {
+            return hit;
+          }
+
           const switchTarget = findAncestorWithUserDataKey(hit.object, "switchData");
           if (switchTarget && hit.distance <= INTERACTION.switchDistance) {
             return hit;
@@ -2739,6 +2958,7 @@
         const controller1 = renderer.xr.getController(0);
         controller1.addEventListener("select", onSelect);
         controller1.addEventListener("squeezestart", onSqueezeStart);
+        controller1.addEventListener("squeezeend", onSqueezeEnd);
         controller1.addEventListener("connected", (event) => {
           controller1.userData.handedness = event.data.handedness;
           updateTeleportController();
@@ -2754,6 +2974,7 @@
         const controller2 = renderer.xr.getController(1);
         controller2.addEventListener("select", onSelect);
         controller2.addEventListener("squeezestart", onSqueezeStart);
+        controller2.addEventListener("squeezeend", onSqueezeEnd);
         controller2.addEventListener("connected", (event) => {
           controller2.userData.handedness = event.data.handedness;
           updateTeleportController();
@@ -2798,7 +3019,7 @@
         const hit = pickInteractiveHit(hits);
         if (hit) {
           console.log("Picked hit:", hit.object.userData);
-          handleInteractiveHit(hit.object);
+          handleInteractiveHit(hit);
         }
       }
 
@@ -2821,8 +3042,22 @@
           const hits = raycaster.intersectObjects(clickableObjects, true);
           const hit = pickInteractiveHit(hits);
           if (hit) {
-            handleInteractiveHit(hit.object);
+            const vrControlHit = findAncestorWithUserDataKey(hit.object, "vrVideoControl");
+            if (vrControlHit && vrControlHit.userData.vrVideoControl === "drag" && vrVideoGroup) {
+              const controllerPos = new THREE.Vector3();
+              controller.getWorldPosition(controllerPos);
+              const offset = new THREE.Vector3().subVectors(vrVideoGroup.position, controllerPos);
+              vrVideoDragState = { controller, offset };
+              return;
+            }
+            handleInteractiveHit(hit);
           }
+        }
+      }
+
+      function onSqueezeEnd(event) {
+        if (vrVideoDragState && vrVideoDragState.controller === event.target) {
+          vrVideoDragState = null;
         }
       }
 
