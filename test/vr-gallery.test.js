@@ -81,9 +81,9 @@ test("vr video controls prioritize explicit buttons over the screen toggle surfa
   assert.match(html, /const\s+VR_VIDEO_CONTROL_PRIORITY\s*=\s*{[\s\S]*toggle:\s*10/);
   assert.match(html, /stop:\s*70/);
   assert.match(html, /function\s+getVrVideoControlPriority\s*\(/);
-  assert.match(html, /function\s+ensureVrVideoDomHost\s*\(/);
   assert.match(html, /function\s+raycastVrVideoControl\s*\(/);
-  assert.match(html, /requestVideoFrameCallback/);
+  assert.match(html, /new THREE\.VideoTexture\(vrVideoElement\)/);
+  assert.match(html, /vrVideoTexture\.encoding\s*=\s*THREE\.sRGBEncoding/);
   assert.match(html, /vrVideoControl\s*=\s*"stop"/);
   assert.match(html, /openVrVideoForTest/);
   assert.match(html, /probeVrVideoControl/);
