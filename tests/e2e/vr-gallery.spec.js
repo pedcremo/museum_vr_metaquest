@@ -319,6 +319,32 @@ test("vr video close control closes the player in debug mode", async ({ page }) 
     .toBe(false);
 });
 
+test("vr video can switch to a different guide without keeping the old player", async ({ page }) => {
+  await page.goto(`${serverInfo.baseUrl}/index.html?debug=1`, {
+    waitUntil: "domcontentloaded",
+  });
+
+  await page.waitForFunction(
+    () => window.__vrGalleryDebug && typeof window.__vrGalleryDebug.replaceVrVideoForTest === "function"
+  );
+
+  await page.evaluate(() => window.__vrGalleryDebug.openVrVideoForTest("Mona Lisa"));
+
+  await expect
+    .poll(async () => page.evaluate(() => window.__vrGalleryDebug.getVrVideoState().src))
+    .toContain("mona_lisa.mp4");
+
+  await page.evaluate(() => window.__vrGalleryDebug.replaceVrVideoForTest("The Starry Night"));
+
+  await expect
+    .poll(async () => page.evaluate(() => window.__vrGalleryDebug.getVrVideoState().src))
+    .toContain("starry_night.mp4");
+
+  const state = await page.evaluate(() => window.__vrGalleryDebug.getVrVideoState());
+  expect(state.open).toBe(true);
+  expect(state.controls).toContain("toggle");
+});
+
 test("visual: painting detail is visible", async ({ page }) => {
   test.slow();
 
