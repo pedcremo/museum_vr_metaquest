@@ -201,7 +201,7 @@
     <div id="video-overlay" aria-hidden="true">
       <div id="video-container">
         <button id="video-close" type="button" aria-label="Cerrar vídeo">×</button>
-        <video id="video-player" playsinline webkit-playsinline></video>
+        <video id="video-player" playsinline webkit-playsinline preload="auto" crossorigin="anonymous"></video>
         <div id="video-controls">
           <button id="video-play-pause" type="button" aria-label="Reproducir/Pausar">▶️</button>
           <button id="video-stop" type="button" aria-label="Detener">⏹️</button>
@@ -323,7 +323,10 @@
           vrVideoElement.crossOrigin = "anonymous";
           vrVideoElement.src = src;
           vrVideoElement.loop = false;
+          // Ensure we request inline playback on mobile/VR browsers
           vrVideoElement.playsInline = true;
+          vrVideoElement.setAttribute("playsinline", "");
+          vrVideoElement.setAttribute("webkit-playsinline", "");
           vrVideoElement.muted = false;
           vrVideoElement.preload = "auto";
 
@@ -333,21 +336,45 @@
           vrVideoTexture.magFilter = THREE.LinearFilter;
           vrVideoTexture.format = THREE.RGBAFormat;
 
-          const aspect = 16 / 9;
-          const height = 1.2; // meters
-          const width = height * aspect;
+          const VIDEO_SCREEN = {
+            aspect: 16 / 9,
+            height: 1.8, // meters
+            distance: 2.6,
+            yOffset: 0.1,
+          };
+
+          const height = VIDEO_SCREEN.height;
+          const width = height * VIDEO_SCREEN.aspect;
 
           const geometry = new THREE.PlaneGeometry(width, height);
-          // const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
           const material = new THREE.MeshBasicMaterial({ map: vrVideoTexture, toneMapped: false });
           const screen = new THREE.Mesh(geometry, material);
           screen.renderOrder = 999;
+          screen.userData.vrVideoControl = "toggle"; // toggle playback when selected
+
+          // Add a small close button in the top-right corner
+          const closeSize = 0.16;
+          const closeButton = new THREE.Mesh(
+            new THREE.PlaneGeometry(closeSize, closeSize),
+            new THREE.MeshBasicMaterial({ color: 0xff4444 })
+          );
+          closeButton.position.set(
+            width / 2 - closeSize / 2 - 0.04,
+            height / 2 - closeSize / 2 - 0.04,
+            0.01
+          );
+          closeButton.userData.vrVideoControl = "close";
 
           vrVideoGroup = new THREE.Group();
           vrVideoGroup.add(screen);
+          vrVideoGroup.add(closeButton);
 
-          // position the screen a short distance in front of the camera
-          const offset = new THREE.Vector3(0, 0.1, -1.8);
+          if (clickableObjects && Array.isArray(clickableObjects)) {
+            clickableObjects.push(screen, closeButton);
+          }
+
+          // position the screen a comfortable distance in front of the camera
+          const offset = new THREE.Vector3(0, VIDEO_SCREEN.yOffset, -VIDEO_SCREEN.distance);
           const worldPos = new THREE.Vector3();
           camera.getWorldPosition(worldPos);
           const worldQuat = camera.getWorldQuaternion(new THREE.Quaternion());
@@ -361,7 +388,11 @@
           scene.add(vrVideoGroup);
 
           vrVideoElement.play().catch((e) => {
-            console.warn("VR video play failed", e);
+            console.warn("VR video play failed, retrying muted", e);
+            vrVideoElement.muted = true;
+            vrVideoElement.play().catch((e2) => {
+              console.warn("VR video play still failed", e2);
+            });
           });
 
           // stop and cleanup when the video ends
@@ -407,6 +438,15 @@
               scene.remove(vrVideoGroup);
               vrVideoGroup = null;
             }
+
+            // Remove any VR video controls from the raycast list.
+            for (let i = clickableObjects.length - 1; i >= 0; i--) {
+              const item = clickableObjects[i];
+              if (item?.userData?.vrVideoControl) {
+                clickableObjects.splice(i, 1);
+              }
+            }
+
             vrVideoElement = null;
           } catch (e) {
             console.warn("Error closing VR video", e);
@@ -1821,6 +1861,21 @@
       }
 
       function handleInteractiveHit(object) {
+        const vrControlTarget = findAncestorWithUserDataKey(object, "vrVideoControl");
+        if (vrControlTarget) {
+          const action = vrControlTarget.userData.vrVideoControl;
+          if (action === "toggle" && vrVideoElement) {
+            if (vrVideoElement.paused) {
+              vrVideoElement.play().catch(() => {});
+            } else {
+              vrVideoElement.pause();
+            }
+          } else if (action === "close") {
+            closeVideoPlayer();
+          }
+          return true;
+        }
+
         const audioBadgeTarget = findAncestorWithUserDataKey(object, "audioBadge");
         if (audioBadgeTarget) {
           const title = audioBadgeTarget.userData.paintingTitle;
