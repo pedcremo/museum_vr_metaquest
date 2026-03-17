@@ -85,6 +85,7 @@ test("vr video controls prioritize explicit buttons over the screen toggle surfa
   assert.match(html, /function\s+createVrVideoFrameSurface\s*\(/);
   assert.match(html, /ctx\.drawImage\(\s*vrVideoElement/);
   assert.match(html, /if\s*\(isQuestBrowser\(\)\)\s*{[\s\S]*vrVideoFrameSurface = createVrVideoFrameSurface\(vrVideoElement\)/);
+  assert.match(html, /const\s+useMinimalQuestVrVideoUi\s*=\s*isQuestBrowser\(\)/);
   assert.match(html, /new THREE\.VideoTexture\(vrVideoElement\)/);
   assert.match(html, /vrVideoTexture\.encoding\s*=\s*THREE\.sRGBEncoding/);
   assert.match(html, /map:\s*vrVideoTexture,[\s\S]*side:\s*THREE\.DoubleSide/);
@@ -96,6 +97,7 @@ test("vr video controls prioritize explicit buttons over the screen toggle surfa
     html,
     /function\s+onSqueezeStart\s*\([\s\S]*const hit = pickInteractiveHit\(hits\);[\s\S]*if \(hit\)[\s\S]*teleportTo\(teleportTarget\);/
   );
+  assert.match(html, /vrVideoMinimalQuestUi[\s\S]*controller !== teleportController[\s\S]*closeVideoPlayer\(\)/);
 });
 
 test("collisions are defined for benches and fountain", () => {
