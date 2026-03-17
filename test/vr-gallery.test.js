@@ -91,8 +91,10 @@ test("vr video controls prioritize explicit buttons over the screen toggle surfa
   assert.match(html, /map:\s*vrVideoTexture,[\s\S]*side:\s*THREE\.DoubleSide/);
   assert.match(html, /vrVideoControl\s*=\s*"stop"/);
   assert.match(html, /openVrVideoForTest/);
+  assert.match(html, /replaceVrVideoForTest/);
   assert.match(html, /probeVrVideoControl/);
   assert.match(html, /invokeVrVideoControl/);
+  assert.match(html, /closeVideoPlayer\(\);[\s\S]*vrVideoElement = document\.createElement\("video"\)/);
   assert.match(
     html,
     /function\s+onSqueezeStart\s*\([\s\S]*const hit = pickInteractiveHit\(hits\);[\s\S]*if \(hit\)[\s\S]*teleportTo\(teleportTarget\);/

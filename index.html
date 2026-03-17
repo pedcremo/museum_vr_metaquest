@@ -548,15 +548,11 @@
 
       function showVideoPlayerInVr(src, title) {
         try {
-          // If already showing, replace source
           if (vrVideoElement) {
-            vrVideoElement.pause();
-            vrVideoElement.src = src;
-            vrVideoElement.currentTime = 0;
-            vrVideoElement.play().catch((e) => {
-              console.warn("VR video play failed", e);
-            });
-            return;
+            // Rebuild the VR player from scratch when switching guides.
+            // Quest is noticeably more reliable with a fresh <video> element
+            // than with src swaps on an already-playing element.
+            closeVideoPlayer();
           }
 
           vrVideoElement = document.createElement("video");
@@ -1756,11 +1752,18 @@
             showVideoPlayerInVr(src, title);
             return true;
           },
+          replaceVrVideoForTest: (title = "The Starry Night") => {
+            const src = VIDEO_GUIDES[title] ?? Object.values(VIDEO_GUIDES)[0];
+            if (!src) return false;
+            showVideoPlayerInVr(src, title);
+            return true;
+          },
           getVrVideoState: () => ({
             open: Boolean(vrVideoElement && vrVideoGroup),
             paused: vrVideoElement ? vrVideoElement.paused : null,
             currentTime: vrVideoElement ? vrVideoElement.currentTime : null,
             volume: vrVideoElement ? vrVideoElement.volume : null,
+            src: vrVideoElement ? vrVideoElement.currentSrc || vrVideoElement.src || null : null,
             controls: Object.entries({
               toggle: Boolean(vrVideoScreen),
               playPause: Boolean(vrVideoPlayPauseButton),
