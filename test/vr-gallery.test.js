@@ -9,6 +9,13 @@ const manifestPath = path.join(__dirname, "..", "manifest.webmanifest");
 const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
 const swPath = path.join(__dirname, "..", "sw.js");
 const sw = fs.readFileSync(swPath, "utf8");
+const birthOfVenusGuidePath = path.join(
+  __dirname,
+  "..",
+  "assets",
+  "audioguides",
+  "birth_of_venus.mp4"
+);
 
 test("index.html boots WebXR correctly", () => {
   assert.match(html, /renderer\.xr\.enabled\s*=\s*true/);
@@ -41,7 +48,7 @@ test("web app launch is configured for fullscreen-capable installs", () => {
   assert.ok(manifest.display_override.includes("standalone"));
   assert.ok(manifest.icons.some((icon) => icon.src.includes("vr-gallery-icon-192.png")));
   assert.ok(manifest.icons.some((icon) => icon.src.includes("vr-gallery-icon-512.png")));
-  assert.ok(sw.includes("const CACHE_NAME = \"vr-gallery-shell-v1\""));
+  assert.match(sw, /const CACHE_NAME = "vr-gallery-shell-v\d+"/);
   assert.ok(sw.includes("https://unpkg.com"));
 });
 
@@ -70,6 +77,21 @@ test("snap turn and stick movement are configured", () => {
   assert.match(html, /function\s+updateMovement\s*\(/);
 });
 
+test("vr video controls prioritize explicit buttons over the screen toggle surface", () => {
+  assert.match(html, /const\s+VR_VIDEO_CONTROL_PRIORITY\s*=\s*{[\s\S]*toggle:\s*10/);
+  assert.match(html, /stop:\s*70/);
+  assert.match(html, /function\s+getVrVideoControlPriority\s*\(/);
+  assert.match(html, /function\s+raycastVrVideoControl\s*\(/);
+  assert.match(html, /vrVideoControl\s*=\s*"stop"/);
+  assert.match(html, /openVrVideoForTest/);
+  assert.match(html, /probeVrVideoControl/);
+  assert.match(html, /invokeVrVideoControl/);
+  assert.match(
+    html,
+    /function\s+onSqueezeStart\s*\([\s\S]*const hit = pickInteractiveHit\(hits\);[\s\S]*if \(hit\)[\s\S]*teleportTo\(teleportTarget\);/
+  );
+});
+
 test("collisions are defined for benches and fountain", () => {
   assert.match(html, /function\s+addColliderFromObject\s*\(/);
   assert.match(html, /function\s+resolveCollisions\s*\(/);
@@ -91,4 +113,10 @@ test("artworks include info-card metadata and conditional audio badges", () => {
   assert.match(html, /hasAudioGuide:\s*(true|false)/);
   assert.match(html, /function\s+createArtworkInfoCard\s*\(/);
   assert.match(html, /function\s+drawAudioBadge\s*\(/);
+});
+
+test("birth of venus video guide is linked to the painting", () => {
+  assert.match(html, /title:\s*"The Birth of Venus"/);
+  assert.match(html, /"The Birth of Venus":\s*"assets\/audioguides\/birth_of_venus\.mp4"/);
+  assert.ok(fs.existsSync(birthOfVenusGuidePath));
 });

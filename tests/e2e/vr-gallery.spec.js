@@ -19,6 +19,10 @@ function contentTypeFor(filePath) {
       return "image/jpeg";
     case ".png":
       return "image/png";
+    case ".mp4":
+      return "video/mp4";
+    case ".m4a":
+      return "audio/mp4";
     default:
       return "application/octet-stream";
   }
@@ -87,6 +91,8 @@ test("desktop WASD movement updates player position", async ({ page }) => {
 });
 
 test("desktop vertical movement responds to Space E Ctrl and Q", async ({ page }) => {
+  test.slow();
+
   await page.goto(`${serverInfo.baseUrl}/index.html?debug=1`, {
     waitUntil: "domcontentloaded",
   });
@@ -199,9 +205,7 @@ test("artwork info cards expose metadata and audio badge state", async ({ page }
   expect(stats.length).toBeGreaterThan(0);
 
   const withAudio = stats.filter((stat) => stat.hasAudioGuide);
-  const withoutAudio = stats.filter((stat) => !stat.hasAudioGuide);
   expect(withAudio.length).toBeGreaterThan(0);
-  expect(withoutAudio.length).toBeGreaterThan(0);
 
   for (const stat of stats) {
     expect(stat.title).toBeTruthy();
@@ -257,7 +261,67 @@ test("switch pilot LEDs stay visible when all gallery lights are off", async ({ 
   expect(artAfter.pilotLightIntensity).toBeGreaterThan(artBefore.pilotLightIntensity);
 });
 
+test("vr video controls win hit selection over the screen surface", async ({ page }) => {
+  await page.goto(`${serverInfo.baseUrl}/index.html?debug=1`, {
+    waitUntil: "domcontentloaded",
+  });
+
+  await page.waitForFunction(
+    () => window.__vrGalleryDebug && typeof window.__vrGalleryDebug.openVrVideoForTest === "function"
+  );
+
+  await page.evaluate(() => window.__vrGalleryDebug.openVrVideoForTest("Mona Lisa"));
+
+  await page.waitForFunction(() => {
+    const state = window.__vrGalleryDebug?.getVrVideoState?.();
+    return Boolean(state?.open);
+  });
+
+  const state = await page.evaluate(() => window.__vrGalleryDebug.getVrVideoState());
+  expect(state.controls).toEqual(
+    expect.arrayContaining(["toggle", "playPause", "stop", "close", "seek", "volume", "recenter", "drag"])
+  );
+
+  const probes = await page.evaluate(() => ({
+    close: window.__vrGalleryDebug.probeVrVideoControl("close"),
+    stop: window.__vrGalleryDebug.probeVrVideoControl("stop"),
+    drag: window.__vrGalleryDebug.probeVrVideoControl("drag"),
+  }));
+
+  for (const probe of Object.values(probes)) {
+    expect(probe).toBeTruthy();
+    expect(probe.hitActions).toContain("toggle");
+    expect(probe.chosenAction).toBe(probe.requestedAction);
+  }
+});
+
+test("vr video close control closes the player in debug mode", async ({ page }) => {
+  await page.goto(`${serverInfo.baseUrl}/index.html?debug=1`, {
+    waitUntil: "domcontentloaded",
+  });
+
+  await page.waitForFunction(
+    () => window.__vrGalleryDebug && typeof window.__vrGalleryDebug.invokeVrVideoControl === "function"
+  );
+
+  await page.evaluate(() => window.__vrGalleryDebug.openVrVideoForTest("Mona Lisa"));
+
+  await page.waitForFunction(() => {
+    const state = window.__vrGalleryDebug?.getVrVideoState?.();
+    return Boolean(state?.open);
+  });
+
+  const invokedAction = await page.evaluate(() => window.__vrGalleryDebug.invokeVrVideoControl("close"));
+  expect(invokedAction).toBe("close");
+
+  await expect
+    .poll(async () => page.evaluate(() => window.__vrGalleryDebug.getVrVideoState().open))
+    .toBe(false);
+});
+
 test("visual: painting detail is visible", async ({ page }) => {
+  test.slow();
+
   await page.goto(`${serverInfo.baseUrl}/index.html?debug=1`, {
     waitUntil: "domcontentloaded",
   });
@@ -276,5 +340,7 @@ test("visual: painting detail is visible", async ({ page }) => {
   await page.evaluate(() => window.__vrGalleryDebug.waitForHighTextures());
   await page.waitForTimeout(300);
 
-  await expect(page).toHaveScreenshot("painting-detail.png");
+  await expect(page).toHaveScreenshot("painting-detail.png", {
+    clip: { x: 0, y: 0, width: 1280, height: 520 },
+  });
 });

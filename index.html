@@ -301,6 +301,7 @@
       let vrVideoElement = null;
       let vrVideoTexture = null;
       let vrVideoPlayPauseButton = null;
+      let vrVideoStopButton = null;
       let vrVideoCloseButton = null;
       let vrVideoSeekBar = null;
       let vrVideoSeekFill = null;
@@ -310,6 +311,72 @@
       let vrVideoDragHandle = null;
       // When the user grips the video screen in VR, this holds the drag state
       let vrVideoDragState = null;
+      const VR_VIDEO_CONTROL_PRIORITY = {
+        close: 80,
+        stop: 70,
+        drag: 60,
+        recenter: 50,
+        playPause: 40,
+        seek: 30,
+        volume: 20,
+        toggle: 10,
+      };
+
+      function getVrVideoControlPriority(action) {
+        return VR_VIDEO_CONTROL_PRIORITY[action] ?? 0;
+      }
+
+      function getVrVideoControlObject(action) {
+        switch (action) {
+          case "toggle":
+            return vrVideoScreen;
+          case "playPause":
+            return vrVideoPlayPauseButton;
+          case "stop":
+            return vrVideoStopButton;
+          case "close":
+            return vrVideoCloseButton;
+          case "seek":
+            return vrVideoSeekBar;
+          case "volume":
+            return vrVideoVolumeBar;
+          case "recenter":
+            return vrVideoRecenterButton;
+          case "drag":
+            return vrVideoDragHandle;
+          default:
+            return null;
+        }
+      }
+
+      function getVrVideoControlActionFromHit(hit) {
+        const vrControlTarget = findAncestorWithUserDataKey(hit?.object ?? null, "vrVideoControl");
+        return vrControlTarget?.userData?.vrVideoControl ?? null;
+      }
+
+      function raycastVrVideoControl(action) {
+        const target = getVrVideoControlObject(action);
+        if (!target) return null;
+
+        const origin = new THREE.Vector3();
+        const targetPos = new THREE.Vector3();
+        camera.getWorldPosition(origin);
+        target.getWorldPosition(targetPos);
+
+        const direction = targetPos.sub(origin);
+        const distance = direction.length();
+        if (distance <= 0) return null;
+
+        raycaster.ray.origin.copy(origin);
+        raycaster.ray.direction.copy(direction.normalize());
+        raycaster.far = distance + 0.5;
+
+        const hits = raycaster.intersectObjects(clickableObjects, true);
+        return {
+          hits,
+          chosenHit: pickInteractiveHit(hits),
+        };
+      }
 
       function showVideoPlayer(src, title) {
         if (renderer.xr && renderer.xr.isPresenting) {
@@ -361,14 +428,15 @@
 
           const screen = new THREE.Mesh(
             new THREE.PlaneGeometry(width, height),
-            new THREE.MeshBasicMaterial({
-              map: vrVideoTexture,
-              toneMapped: false,
-              side: THREE.DoubleSide,
-            })
+            new THREE.MeshBasicMaterial({ map: vrVideoTexture, toneMapped: false })
           );
           screen.renderOrder = 999;
           screen.userData.vrVideoControl = "toggle"; // tap => toggle play/pause
+
+          const buttonRowSize = 0.18;
+          const buttonRowGap = 0.08;
+          const buttonRowY = -height / 2 + buttonRowSize / 2 + 0.08;
+          const leftButtonX = -width / 2 + buttonRowSize / 2 + 0.08;
 
           // Add a small close button in the top-right corner
           const closeSize = 0.16;
@@ -379,7 +447,6 @@
               transparent: true,
               opacity: 0.9,
               depthTest: false,
-              side: THREE.DoubleSide,
             })
           );
           closeButton.renderOrder = 1001;
@@ -391,24 +458,32 @@
           closeButton.userData.vrVideoControl = "close";
 
           // Add a play/pause button in the bottom-left corner
-          const playPauseSize = 0.18;
           const playPauseButton = new THREE.Mesh(
-            new THREE.PlaneGeometry(playPauseSize, playPauseSize),
+            new THREE.PlaneGeometry(buttonRowSize, buttonRowSize),
             new THREE.MeshBasicMaterial({
               color: 0x44ff44,
               transparent: true,
               opacity: 0.9,
               depthTest: false,
-              side: THREE.DoubleSide,
             })
           );
           playPauseButton.renderOrder = 1001;
-          playPauseButton.position.set(
-            -width / 2 + playPauseSize / 2 + 0.08,
-            -height / 2 + playPauseSize / 2 + 0.08,
-            0.01
-          );
+          playPauseButton.position.set(leftButtonX, buttonRowY, 0.01);
           playPauseButton.userData.vrVideoControl = "playPause";
+
+          // Stop button to match the desktop overlay controls.
+          const stopButton = new THREE.Mesh(
+            new THREE.PlaneGeometry(buttonRowSize, buttonRowSize),
+            new THREE.MeshBasicMaterial({
+              color: 0xff8844,
+              transparent: true,
+              opacity: 0.9,
+              depthTest: false,
+            })
+          );
+          stopButton.renderOrder = 1001;
+          stopButton.position.set(leftButtonX + buttonRowSize + buttonRowGap, buttonRowY, 0.01);
+          stopButton.userData.vrVideoControl = "stop";
 
           // Add a recenter button in the top-center
           const recenterSize = 0.16;
@@ -419,7 +494,6 @@
               transparent: true,
               opacity: 0.9,
               depthTest: false,
-              side: THREE.DoubleSide,
             })
           );
           recenterButton.renderOrder = 1001;
@@ -427,7 +501,7 @@
           recenterButton.userData.vrVideoControl = "recenter";
 
           // Seek bar (tappable to seek)
-          const seekBarWidth = width * 0.7;
+          const seekBarWidth = width * 0.6;
           const seekBarHeight = 0.08;
           const seekBar = new THREE.Mesh(
             new THREE.PlaneGeometry(seekBarWidth, seekBarHeight),
@@ -436,7 +510,6 @@
               transparent: true,
               opacity: 0.8,
               depthTest: false,
-              side: THREE.DoubleSide,
             })
           );
           seekBar.renderOrder = 1001;
@@ -452,7 +525,6 @@
               transparent: true,
               opacity: 0.9,
               depthTest: false,
-              side: THREE.DoubleSide,
             })
           );
           seekFill.renderOrder = 1002;
@@ -470,7 +542,6 @@
               transparent: true,
               opacity: 0.8,
               depthTest: false,
-              side: THREE.DoubleSide,
             })
           );
           volumeBar.renderOrder = 1001;
@@ -486,7 +557,6 @@
               transparent: true,
               opacity: 0.9,
               depthTest: false,
-              side: THREE.DoubleSide,
             })
           );
           volumeFill.renderOrder = 1002;
@@ -503,7 +573,6 @@
               transparent: true,
               opacity: 0.9,
               depthTest: false,
-              side: THREE.DoubleSide,
             })
           );
           dragHandle.renderOrder = 1001;
@@ -523,9 +592,12 @@
           vrVideoGroup.add(recenterButton);
           vrVideoGroup.add(closeButton);
           vrVideoGroup.add(playPauseButton);
+          vrVideoGroup.add(stopButton);
           vrVideoGroup.add(dragHandle);
 
+          vrVideoScreen = screen;
           vrVideoPlayPauseButton = playPauseButton;
+          vrVideoStopButton = stopButton;
           vrVideoCloseButton = closeButton;
           vrVideoSeekBar = seekBar;
           vrVideoSeekFill = seekFill;
@@ -567,17 +639,15 @@
           updateSeekFill();
           updateVolumeFill();
 
-          // Keep screen as a reference for toggle-on-tap, but avoid adding it to clickableObjects
-          // so it doesn't intercept raycasts intended for the smaller overlay controls.
-          vrVideoScreen = screen;
-
           if (clickableObjects && Array.isArray(clickableObjects)) {
             clickableObjects.push(
+              screen,
               seekBar,
               volumeBar,
               recenterButton,
               closeButton,
               playPauseButton,
+              stopButton,
               dragHandle
             );
           }
@@ -631,46 +701,43 @@
       }
 
       function closeVideoPlayer() {
-        if (renderer.xr && renderer.xr.isPresenting) {
-          // remove VR screen
-          try {
-            if (vrVideoElement) {
-              vrVideoElement.pause();
-              vrVideoElement.removeAttribute("src");
-              vrVideoElement.load();
-            }
-            if (vrVideoTexture) {
-              vrVideoTexture.dispose();
-              vrVideoTexture = null;
-            }
-            if (vrVideoGroup) {
-              scene.remove(vrVideoGroup);
-              vrVideoGroup = null;
-            }
-
-            // Remove any VR video controls from the raycast list.
-            for (let i = clickableObjects.length - 1; i >= 0; i--) {
-              const item = clickableObjects[i];
-              if (item?.userData?.vrVideoControl) {
-                clickableObjects.splice(i, 1);
-              }
-            }
-
-            vrVideoElement = null;
-            vrVideoScreen = null;
-            vrVideoPlayPauseButton = null;
-            vrVideoCloseButton = null;
-            vrVideoSeekBar = null;
-            vrVideoSeekFill = null;
-            vrVideoVolumeBar = null;
-            vrVideoVolumeFill = null;
-            vrVideoRecenterButton = null;
-            vrVideoDragHandle = null;
-            vrVideoDragState = null;
-          } catch (e) {
-            console.warn("Error closing VR video", e);
+        try {
+          if (vrVideoElement) {
+            vrVideoElement.pause();
+            vrVideoElement.removeAttribute("src");
+            vrVideoElement.load();
           }
-          return;
+          if (vrVideoTexture) {
+            vrVideoTexture.dispose();
+            vrVideoTexture = null;
+          }
+          if (vrVideoGroup) {
+            scene.remove(vrVideoGroup);
+            vrVideoGroup = null;
+          }
+
+          // Remove any VR video controls from the raycast list.
+          for (let i = clickableObjects.length - 1; i >= 0; i--) {
+            const item = clickableObjects[i];
+            if (item?.userData?.vrVideoControl) {
+              clickableObjects.splice(i, 1);
+            }
+          }
+
+          vrVideoScreen = null;
+          vrVideoElement = null;
+          vrVideoPlayPauseButton = null;
+          vrVideoStopButton = null;
+          vrVideoCloseButton = null;
+          vrVideoSeekBar = null;
+          vrVideoSeekFill = null;
+          vrVideoVolumeBar = null;
+          vrVideoVolumeFill = null;
+          vrVideoRecenterButton = null;
+          vrVideoDragHandle = null;
+          vrVideoDragState = null;
+        } catch (e) {
+          console.warn("Error closing VR video", e);
         }
 
         const overlay = document.getElementById("video-overlay");
@@ -1467,6 +1534,46 @@
             if (!painting) return;
             focusPainting(painting, distance);
           },
+          openVrVideoForTest: (title = "Mona Lisa") => {
+            const src = VIDEO_GUIDES[title] ?? Object.values(VIDEO_GUIDES)[0];
+            if (!src) return false;
+            closeVideoPlayer();
+            showVideoPlayerInVr(src, title);
+            return true;
+          },
+          getVrVideoState: () => ({
+            open: Boolean(vrVideoElement && vrVideoGroup),
+            paused: vrVideoElement ? vrVideoElement.paused : null,
+            currentTime: vrVideoElement ? vrVideoElement.currentTime : null,
+            volume: vrVideoElement ? vrVideoElement.volume : null,
+            controls: Object.entries({
+              toggle: Boolean(vrVideoScreen),
+              playPause: Boolean(vrVideoPlayPauseButton),
+              stop: Boolean(vrVideoStopButton),
+              close: Boolean(vrVideoCloseButton),
+              seek: Boolean(vrVideoSeekBar),
+              volume: Boolean(vrVideoVolumeBar),
+              recenter: Boolean(vrVideoRecenterButton),
+              drag: Boolean(vrVideoDragHandle),
+            })
+              .filter(([, present]) => present)
+              .map(([action]) => action),
+          }),
+          probeVrVideoControl: (action) => {
+            const result = raycastVrVideoControl(action);
+            if (!result) return null;
+            return {
+              requestedAction: action,
+              hitActions: result.hits.map((hit) => getVrVideoControlActionFromHit(hit)).filter(Boolean),
+              chosenAction: getVrVideoControlActionFromHit(result.chosenHit),
+            };
+          },
+          invokeVrVideoControl: (action) => {
+            const result = raycastVrVideoControl(action);
+            if (!result?.chosenHit) return null;
+            handleInteractiveHit(result.chosenHit);
+            return getVrVideoControlActionFromHit(result.chosenHit);
+          },
           waitForHighTextures: (timeoutMs = 5000) =>
             new Promise((resolve) => {
               const start = performance.now();
@@ -2122,6 +2229,9 @@
                 vrVideoElement.paused ? 0x44ff44 : 0xffaa00
               );
             }
+          } else if (action === "stop" && vrVideoElement) {
+            vrVideoElement.pause();
+            vrVideoElement.currentTime = 0;
           } else if (action === "close") {
             closeVideoPlayer();
           } else if (action === "recenter") {
@@ -2295,30 +2405,46 @@
       }
 
       function pickInteractiveHit(hits) {
+        let bestVrHit = null;
+        let bestVrPriority = -Infinity;
+
         for (const hit of hits) {
-          // Allow video UI to be interacted with in VR
-          if (findAncestorWithUserDataKey(hit.object, "vrVideoControl")) {
-            return hit;
+          const vrControlTarget = findAncestorWithUserDataKey(hit.object, "vrVideoControl");
+          if (vrControlTarget) {
+            const priority = getVrVideoControlPriority(vrControlTarget.userData.vrVideoControl);
+            if (
+              !bestVrHit ||
+              priority > bestVrPriority ||
+              (priority === bestVrPriority && hit.distance < bestVrHit.distance)
+            ) {
+              bestVrHit = hit;
+              bestVrPriority = priority;
+            }
+            continue;
           }
 
           const switchTarget = findAncestorWithUserDataKey(hit.object, "switchData");
           if (switchTarget && hit.distance <= INTERACTION.switchDistance) {
+            if (bestVrHit) return bestVrHit;
             return hit;
           }
 
           if (findAncestorWithUserDataKey(hit.object, "artworkActionData")) {
+            if (bestVrHit) return bestVrHit;
             return hit;
           }
 
           if (findAncestorWithUserDataKey(hit.object, "audioBadge")) {
+            if (bestVrHit) return bestVrHit;
             return hit;
           }
 
           if (findAncestorWithUserDataKey(hit.object, "paintingHitData")) {
+            if (bestVrHit) return bestVrHit;
             return hit;
           }
         }
-        return null;
+        return bestVrHit;
       }
 
       function setSwitchState(group, nextState) {
@@ -3081,18 +3207,7 @@
         raycaster.far = INTERACTION.maxDistance;
         const hits = raycaster.intersectObjects(clickableObjects, true);
         console.log("Hits:", hits.length);
-        let hit = pickInteractiveHit(hits);
-
-        // If we didn't hit a specific control, allow tapping the video screen itself
-        // to toggle play/pause (the screen is large and would otherwise intercept
-        // raycasts if added to clickableObjects directly).
-        if (!hit && vrVideoScreen) {
-          const screenHits = raycaster.intersectObject(vrVideoScreen, true);
-          if (screenHits.length) {
-            hit = screenHits[0];
-          }
-        }
-
+        const hit = pickInteractiveHit(hits);
         if (hit) {
           console.log("Picked hit:", hit.object.userData);
           handleInteractiveHit(hit);
@@ -3100,34 +3215,36 @@
       }
 
       function onSqueezeStart(event) {
-        // If teleport controller and marker visible -> teleport (existing behaviour)
-        if (renderer.xr.isPresenting && event.target === teleportController) {
-          if (!teleportMarker || !teleportMarker.visible) return;
-          if (!isTeleportLocationValid(teleportTarget)) return;
-          teleportTo(teleportTarget);
+        if (!renderer.xr.isPresenting) return;
+
+        const controller = event.target;
+        tempMatrix.identity().extractRotation(controller.matrixWorld);
+        raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+        raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+        raycaster.far = INTERACTION.maxDistance;
+
+        // Let explicit interactions win over teleport, otherwise the right-hand
+        // grip can never drag or close the floating video window when the floor
+        // marker is visible behind it.
+        const hits = raycaster.intersectObjects(clickableObjects, true);
+        const hit = pickInteractiveHit(hits);
+        if (hit) {
+          const vrControlHit = findAncestorWithUserDataKey(hit.object, "vrVideoControl");
+          if (vrControlHit && vrControlHit.userData.vrVideoControl === "drag" && vrVideoGroup) {
+            const controllerPos = new THREE.Vector3();
+            controller.getWorldPosition(controllerPos);
+            const offset = new THREE.Vector3().subVectors(vrVideoGroup.position, controllerPos);
+            vrVideoDragState = { controller, offset };
+            return;
+          }
+          handleInteractiveHit(hit);
           return;
         }
 
-        // Otherwise, treat squeeze as an interaction (so grip can also trigger badges)
-        if (renderer.xr.isPresenting) {
-          const controller = event.target;
-          tempMatrix.identity().extractRotation(controller.matrixWorld);
-          raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
-          raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
-          raycaster.far = INTERACTION.maxDistance;
-          const hits = raycaster.intersectObjects(clickableObjects, true);
-          const hit = pickInteractiveHit(hits);
-          if (hit) {
-            const vrControlHit = findAncestorWithUserDataKey(hit.object, "vrVideoControl");
-            if (vrControlHit && vrControlHit.userData.vrVideoControl === "drag" && vrVideoGroup) {
-              const controllerPos = new THREE.Vector3();
-              controller.getWorldPosition(controllerPos);
-              const offset = new THREE.Vector3().subVectors(vrVideoGroup.position, controllerPos);
-              vrVideoDragState = { controller, offset };
-              return;
-            }
-            handleInteractiveHit(hit);
-          }
+        if (controller === teleportController) {
+          if (!teleportMarker || !teleportMarker.visible) return;
+          if (!isTeleportLocationValid(teleportTarget)) return;
+          teleportTo(teleportTarget);
         }
       }
 
