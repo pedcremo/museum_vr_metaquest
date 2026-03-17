@@ -300,6 +300,9 @@
       let vrVideoScreen = null;
       let vrVideoElement = null;
       let vrVideoTexture = null;
+      let vrVideoHudTextures = [];
+      let vrVideoTitleSurface = null;
+      let vrVideoPlayPauseSurface = null;
       let vrVideoPlayPauseButton = null;
       let vrVideoStopButton = null;
       let vrVideoCloseButton = null;
@@ -324,6 +327,106 @@
 
       function getVrVideoControlPriority(action) {
         return VR_VIDEO_CONTROL_PRIORITY[action] ?? 0;
+      }
+
+      function registerVrVideoHudTexture(texture) {
+        vrVideoHudTextures.push(texture);
+        return texture;
+      }
+
+      function createVrVideoHudSurface(width, height) {
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        const texture = registerVrVideoHudTexture(new THREE.CanvasTexture(canvas));
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        return { canvas, ctx, texture };
+      }
+
+      function drawVrVideoHudSurface(
+        surface,
+        {
+          label = "",
+          subtitle = "",
+          accent = "#c7a268",
+          backgroundTop = "#261a14",
+          backgroundBottom = "#15100c",
+          border = "#e7dac1",
+          text = "#f7f0e4",
+          align = "center",
+          padding = 44,
+          labelSize = 54,
+          subtitleSize = 20,
+        } = {}
+      ) {
+        if (!surface) return;
+
+        const { canvas, ctx, texture } = surface;
+        const width = canvas.width;
+        const height = canvas.height;
+        const radius = Math.min(48, height * 0.28);
+
+        ctx.clearRect(0, 0, width, height);
+
+        const background = ctx.createLinearGradient(0, 0, 0, height);
+        background.addColorStop(0, backgroundTop);
+        background.addColorStop(1, backgroundBottom);
+        fillRoundedRect(ctx, 0, 0, width, height, radius, background);
+
+        ctx.save();
+        roundedRectPath(ctx, 10, 10, width - 20, height - 20, Math.max(14, radius - 10));
+        ctx.clip();
+        ctx.globalAlpha = 0.08;
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 4;
+        for (let offset = -height; offset < width + height; offset += 38) {
+          ctx.beginPath();
+          ctx.moveTo(offset, 0);
+          ctx.lineTo(offset + height, height);
+          ctx.stroke();
+        }
+        ctx.restore();
+
+        fillRoundedRect(ctx, 18, 18, width - 36, 10, 5, accent);
+        strokeRoundedRect(ctx, 8, 8, width - 16, height - 16, Math.max(12, radius - 8), border, 4);
+
+        const textX =
+          align === "left" ? padding : align === "right" ? width - padding : width / 2;
+
+        if (subtitle) {
+          ctx.fillStyle = "rgba(247, 240, 228, 0.75)";
+          ctx.font = `600 ${subtitleSize}px "IBM Plex Sans", sans-serif`;
+          ctx.textAlign = align;
+          ctx.textBaseline = "middle";
+          ctx.fillText(subtitle, textX, height * 0.34);
+        }
+
+        if (label) {
+          ctx.fillStyle = text;
+          ctx.font = `700 ${labelSize}px "IBM Plex Sans", sans-serif`;
+          ctx.textAlign = align;
+          ctx.textBaseline = "middle";
+          ctx.fillText(label, textX, subtitle ? height * 0.66 : height * 0.55);
+        }
+
+        texture.needsUpdate = true;
+      }
+
+      function createVrVideoHudMaterial(width, height, options) {
+        const surface = createVrVideoHudSurface(width, height);
+        drawVrVideoHudSurface(surface, options);
+        return {
+          surface,
+          material: new THREE.MeshBasicMaterial({
+            map: surface.texture,
+            transparent: true,
+            depthTest: false,
+            toneMapped: false,
+          }),
+        };
       }
 
       function getVrVideoControlObject(action) {
@@ -358,6 +461,10 @@
         const target = getVrVideoControlObject(action);
         if (!target) return null;
 
+        scene.updateMatrixWorld(true);
+        vrVideoGroup?.updateMatrixWorld(true);
+        target.updateWorldMatrix(true, false);
+
         const origin = new THREE.Vector3();
         const targetPos = new THREE.Vector3();
         camera.getWorldPosition(origin);
@@ -391,6 +498,16 @@
           if (vrVideoElement) {
             vrVideoElement.pause();
             vrVideoElement.src = src;
+            vrVideoElement.currentTime = 0;
+            if (vrVideoTitleSurface) {
+              drawVrVideoHudSurface(vrVideoTitleSurface, {
+                label: title || "Video Guide",
+                subtitle: "VIDEO GUIDE",
+                accent: "#c7a268",
+                labelSize: 40,
+                subtitleSize: 18,
+              });
+            }
             vrVideoElement.play().catch((e) => {
               console.warn("VR video play failed", e);
             });
@@ -425,95 +542,209 @@
 
           const height = VIDEO_SCREEN.height;
           const width = height * VIDEO_SCREEN.aspect;
+          const titleWidth = Math.min(width * 0.46, 1.55);
+          const titleHeight = 0.18;
+          const topButtonWidth = 0.28;
+          const topButtonHeight = 0.12;
+          const buttonWidth = 0.28;
+          const buttonHeight = 0.14;
+          const buttonRowGap = 0.06;
+          const buttonRowY = -height / 2 + buttonHeight / 2 + 0.09;
+          const leftButtonX = -width / 2 + buttonWidth / 2 + 0.14;
+          const seekBarWidth = width * 0.6;
+          const seekBarHeight = 0.09;
+          const seekBarY = -height / 2 + 0.31;
+          const volumeBarWidth = 0.06;
+          const volumeBarHeight = height * 0.68;
 
           const screen = new THREE.Mesh(
             new THREE.PlaneGeometry(width, height),
-            new THREE.MeshBasicMaterial({ map: vrVideoTexture, toneMapped: false })
+            new THREE.MeshBasicMaterial({
+              map: vrVideoTexture,
+              toneMapped: false,
+              depthTest: false,
+            })
           );
           screen.renderOrder = 999;
           screen.userData.vrVideoControl = "toggle"; // tap => toggle play/pause
 
-          const buttonRowSize = 0.18;
-          const buttonRowGap = 0.08;
-          const buttonRowY = -height / 2 + buttonRowSize / 2 + 0.08;
-          const leftButtonX = -width / 2 + buttonRowSize / 2 + 0.08;
-
-          // Add a small close button in the top-right corner
-          const closeSize = 0.16;
-          const closeButton = new THREE.Mesh(
-            new THREE.PlaneGeometry(closeSize, closeSize),
+          const screenBackplate = new THREE.Mesh(
+            new THREE.PlaneGeometry(width + 0.14, height + 0.16),
             new THREE.MeshBasicMaterial({
-              color: 0xff4444,
+              color: 0x120d0a,
               transparent: true,
-              opacity: 0.9,
+              opacity: 0.96,
               depthTest: false,
             })
           );
-          closeButton.renderOrder = 1001;
+          screenBackplate.renderOrder = 998;
+          screenBackplate.position.z = -0.02;
+
+          const screenMatte = new THREE.Mesh(
+            new THREE.PlaneGeometry(width + 0.04, height + 0.04),
+            new THREE.MeshBasicMaterial({
+              color: 0x2b2019,
+              transparent: true,
+              opacity: 0.94,
+              depthTest: false,
+            })
+          );
+          screenMatte.renderOrder = 998;
+          screenMatte.position.z = -0.01;
+
+          const titleVisual = createVrVideoHudMaterial(900, 160, {
+            label: title || "Video Guide",
+            subtitle: "VIDEO GUIDE",
+            accent: "#c7a268",
+            labelSize: 40,
+            subtitleSize: 18,
+          });
+          const titleChip = new THREE.Mesh(
+            new THREE.PlaneGeometry(titleWidth, titleHeight),
+            titleVisual.material
+          );
+          titleChip.renderOrder = 1002;
+          titleChip.position.set(0, height / 2 - titleHeight / 2 - 0.08, 0.01);
+
+          const dockVisual = createVrVideoHudMaterial(1200, 320, {
+            accent: "#c7a268",
+            backgroundTop: "#1c1511",
+            backgroundBottom: "#120d0a",
+            border: "#bca37d",
+          });
+          const controlDock = new THREE.Mesh(
+            new THREE.PlaneGeometry(width * 0.76, 0.46),
+            dockVisual.material
+          );
+          controlDock.renderOrder = 1000;
+          controlDock.position.set(0, -height / 2 + 0.25, 0.004);
+
+          const volumeDockVisual = createVrVideoHudMaterial(220, 960, {
+            accent: "#6aaeb0",
+            backgroundTop: "#1b1815",
+            backgroundBottom: "#11100d",
+            border: "#9ac7c7",
+          });
+          const volumeDock = new THREE.Mesh(
+            new THREE.PlaneGeometry(0.16, volumeBarHeight + 0.12),
+            volumeDockVisual.material
+          );
+          volumeDock.renderOrder = 1000;
+          volumeDock.position.set(width / 2 - volumeBarWidth / 2 - 0.06, 0, 0.004);
+
+          const closeVisual = createVrVideoHudMaterial(460, 160, {
+            label: "CLOSE",
+            subtitle: "DISMISS",
+            accent: "#b15649",
+            backgroundTop: "#381a15",
+            backgroundBottom: "#1d100d",
+            border: "#edc6bc",
+            labelSize: 42,
+            subtitleSize: 18,
+          });
+          const closeButton = new THREE.Mesh(
+            new THREE.PlaneGeometry(topButtonWidth, topButtonHeight),
+            closeVisual.material
+          );
+          closeButton.renderOrder = 1003;
           closeButton.position.set(
-            width / 2 - closeSize / 2 - 0.04,
-            height / 2 - closeSize / 2 - 0.04,
+            width / 2 - topButtonWidth / 2 - 0.08,
+            height / 2 - topButtonHeight / 2 - 0.08,
             0.01
           );
           closeButton.userData.vrVideoControl = "close";
 
-          // Add a play/pause button in the bottom-left corner
-          const playPauseButton = new THREE.Mesh(
-            new THREE.PlaneGeometry(buttonRowSize, buttonRowSize),
-            new THREE.MeshBasicMaterial({
-              color: 0x44ff44,
-              transparent: true,
-              opacity: 0.9,
-              depthTest: false,
-            })
+          const dragVisual = createVrVideoHudMaterial(460, 160, {
+            label: "MOVE",
+            subtitle: "HOLD GRIP",
+            accent: "#6b8b95",
+            backgroundTop: "#1a2026",
+            backgroundBottom: "#101418",
+            border: "#c9d8dd",
+            labelSize: 42,
+            subtitleSize: 18,
+          });
+          const dragHandle = new THREE.Mesh(
+            new THREE.PlaneGeometry(topButtonWidth, topButtonHeight),
+            dragVisual.material
           );
-          playPauseButton.renderOrder = 1001;
+          dragHandle.renderOrder = 1003;
+          dragHandle.position.set(
+            -width / 2 + topButtonWidth / 2 + 0.08,
+            height / 2 - topButtonHeight / 2 - 0.08,
+            0.01
+          );
+          dragHandle.userData.vrVideoControl = "drag";
+
+          const playPauseVisual = createVrVideoHudMaterial(540, 220, {
+            label: "PLAY",
+            subtitle: "TRIGGER",
+            accent: "#2d7a61",
+            backgroundTop: "#183128",
+            backgroundBottom: "#101f18",
+            border: "#dceadf",
+            labelSize: 56,
+            subtitleSize: 20,
+          });
+          const playPauseButton = new THREE.Mesh(
+            new THREE.PlaneGeometry(buttonWidth, buttonHeight),
+            playPauseVisual.material
+          );
+          playPauseButton.renderOrder = 1003;
           playPauseButton.position.set(leftButtonX, buttonRowY, 0.01);
           playPauseButton.userData.vrVideoControl = "playPause";
 
-          // Stop button to match the desktop overlay controls.
+          const stopVisual = createVrVideoHudMaterial(540, 220, {
+            label: "STOP",
+            subtitle: "RESET",
+            accent: "#b57447",
+            backgroundTop: "#352116",
+            backgroundBottom: "#1b120d",
+            border: "#ecd6c2",
+            labelSize: 56,
+            subtitleSize: 20,
+          });
           const stopButton = new THREE.Mesh(
-            new THREE.PlaneGeometry(buttonRowSize, buttonRowSize),
-            new THREE.MeshBasicMaterial({
-              color: 0xff8844,
-              transparent: true,
-              opacity: 0.9,
-              depthTest: false,
-            })
+            new THREE.PlaneGeometry(buttonWidth, buttonHeight),
+            stopVisual.material
           );
-          stopButton.renderOrder = 1001;
-          stopButton.position.set(leftButtonX + buttonRowSize + buttonRowGap, buttonRowY, 0.01);
+          stopButton.renderOrder = 1003;
+          stopButton.position.set(leftButtonX + buttonWidth + buttonRowGap, buttonRowY, 0.01);
           stopButton.userData.vrVideoControl = "stop";
 
-          // Add a recenter button in the top-center
-          const recenterSize = 0.16;
+          const recenterVisual = createVrVideoHudMaterial(540, 220, {
+            label: "CENTER",
+            subtitle: "RESET VIEW",
+            accent: "#5f8fa0",
+            backgroundTop: "#182129",
+            backgroundBottom: "#0f151b",
+            border: "#d6e4ea",
+            labelSize: 50,
+            subtitleSize: 18,
+          });
           const recenterButton = new THREE.Mesh(
-            new THREE.PlaneGeometry(recenterSize, recenterSize),
-            new THREE.MeshBasicMaterial({
-              color: 0x6666ff,
-              transparent: true,
-              opacity: 0.9,
-              depthTest: false,
-            })
+            new THREE.PlaneGeometry(buttonWidth, buttonHeight),
+            recenterVisual.material
           );
-          recenterButton.renderOrder = 1001;
-          recenterButton.position.set(0, height / 2 - recenterSize / 2 - 0.12, 0.01);
+          recenterButton.renderOrder = 1003;
+          recenterButton.position.set(
+            leftButtonX + (buttonWidth + buttonRowGap) * 2,
+            buttonRowY,
+            0.01
+          );
           recenterButton.userData.vrVideoControl = "recenter";
 
-          // Seek bar (tappable to seek)
-          const seekBarWidth = width * 0.6;
-          const seekBarHeight = 0.08;
           const seekBar = new THREE.Mesh(
             new THREE.PlaneGeometry(seekBarWidth, seekBarHeight),
             new THREE.MeshBasicMaterial({
-              color: 0x111111,
+              color: 0x241913,
               transparent: true,
-              opacity: 0.8,
+              opacity: 0.96,
               depthTest: false,
             })
           );
-          seekBar.renderOrder = 1001;
-          seekBar.position.set(0, -height / 2 + 0.22, 0.01);
+          seekBar.renderOrder = 1002;
+          seekBar.position.set(0, seekBarY, 0.01);
           seekBar.userData.vrVideoControl = "seek";
           seekBar.userData.barWidth = seekBarWidth;
           seekBar.userData.barHeight = seekBarHeight;
@@ -521,30 +752,27 @@
           const seekFill = new THREE.Mesh(
             new THREE.PlaneGeometry(seekBarWidth, seekBarHeight),
             new THREE.MeshBasicMaterial({
-              color: 0x00ff99,
+              color: 0xd1a063,
               transparent: true,
-              opacity: 0.9,
+              opacity: 0.98,
               depthTest: false,
             })
           );
-          seekFill.renderOrder = 1002;
+          seekFill.renderOrder = 1004;
           seekFill.position.set(-seekBarWidth / 2, 0, 0.02);
           seekFill.scale.x = 0.01;
           seekFill.userData.isFill = true;
 
-          // Volume bar (vertical slider)
-          const volumeBarWidth = 0.06;
-          const volumeBarHeight = height * 0.7;
           const volumeBar = new THREE.Mesh(
             new THREE.PlaneGeometry(volumeBarWidth, volumeBarHeight),
             new THREE.MeshBasicMaterial({
-              color: 0x111111,
+              color: 0x201813,
               transparent: true,
-              opacity: 0.8,
+              opacity: 0.96,
               depthTest: false,
             })
           );
-          volumeBar.renderOrder = 1001;
+          volumeBar.renderOrder = 1002;
           volumeBar.position.set(width / 2 - volumeBarWidth / 2 - 0.06, 0, 0.01);
           volumeBar.userData.vrVideoControl = "volume";
           volumeBar.userData.barWidth = volumeBarWidth;
@@ -553,38 +781,24 @@
           const volumeFill = new THREE.Mesh(
             new THREE.PlaneGeometry(volumeBarWidth, volumeBarHeight),
             new THREE.MeshBasicMaterial({
-              color: 0x44ccff,
+              color: 0x77c9c2,
               transparent: true,
-              opacity: 0.9,
+              opacity: 0.98,
               depthTest: false,
             })
           );
-          volumeFill.renderOrder = 1002;
+          volumeFill.renderOrder = 1004;
           volumeFill.position.set(0, -volumeBarHeight / 2, 0.02);
           volumeFill.scale.y = 0.5;
           volumeFill.userData.isFill = true;
 
-          // Add a drag handle in the top-left corner (squeeze + move to reposition)
-          const dragSize = 0.14;
-          const dragHandle = new THREE.Mesh(
-            new THREE.PlaneGeometry(dragSize, dragSize),
-            new THREE.MeshBasicMaterial({
-              color: 0x9999ff,
-              transparent: true,
-              opacity: 0.9,
-              depthTest: false,
-            })
-          );
-          dragHandle.renderOrder = 1001;
-          dragHandle.position.set(
-            -width / 2 + dragSize / 2 + 0.04,
-            height / 2 - dragSize / 2 - 0.04,
-            0.01
-          );
-          dragHandle.userData.vrVideoControl = "drag";
-
           vrVideoGroup = new THREE.Group();
+          vrVideoGroup.add(screenBackplate);
+          vrVideoGroup.add(screenMatte);
           vrVideoGroup.add(screen);
+          vrVideoGroup.add(titleChip);
+          vrVideoGroup.add(controlDock);
+          vrVideoGroup.add(volumeDock);
           vrVideoGroup.add(seekBar);
           vrVideoGroup.add(seekFill);
           vrVideoGroup.add(volumeBar);
@@ -596,6 +810,8 @@
           vrVideoGroup.add(dragHandle);
 
           vrVideoScreen = screen;
+          vrVideoTitleSurface = titleVisual.surface;
+          vrVideoPlayPauseSurface = playPauseVisual.surface;
           vrVideoPlayPauseButton = playPauseButton;
           vrVideoStopButton = stopButton;
           vrVideoCloseButton = closeButton;
@@ -607,10 +823,18 @@
           vrVideoDragHandle = dragHandle;
 
           const updatePlayPauseIndicator = () => {
-            if (vrVideoPlayPauseButton && vrVideoPlayPauseButton.material) {
-              vrVideoPlayPauseButton.material.color.set(
-                vrVideoElement && !vrVideoElement.paused ? 0xffaa00 : 0x44ff44
-              );
+            if (vrVideoPlayPauseSurface) {
+              const isPlaying = Boolean(vrVideoElement && !vrVideoElement.paused);
+              drawVrVideoHudSurface(vrVideoPlayPauseSurface, {
+                label: isPlaying ? "PAUSE" : "PLAY",
+                subtitle: "TRIGGER",
+                accent: isPlaying ? "#d1a063" : "#2d7a61",
+                backgroundTop: isPlaying ? "#3a2715" : "#183128",
+                backgroundBottom: isPlaying ? "#1b120d" : "#101f18",
+                border: isPlaying ? "#ecd9bb" : "#dceadf",
+                labelSize: 56,
+                subtitleSize: 20,
+              });
             }
           };
 
@@ -663,6 +887,7 @@
           // move forward in camera space
           vrVideoGroup.translateZ(offset.z);
           vrVideoGroup.translateY(offset.y);
+          vrVideoGroup.updateMatrixWorld(true);
 
           scene.add(vrVideoGroup);
 
@@ -711,6 +936,10 @@
             vrVideoTexture.dispose();
             vrVideoTexture = null;
           }
+          if (vrVideoHudTextures.length) {
+            vrVideoHudTextures.forEach((texture) => texture.dispose());
+            vrVideoHudTextures = [];
+          }
           if (vrVideoGroup) {
             scene.remove(vrVideoGroup);
             vrVideoGroup = null;
@@ -726,6 +955,8 @@
 
           vrVideoScreen = null;
           vrVideoElement = null;
+          vrVideoTitleSurface = null;
+          vrVideoPlayPauseSurface = null;
           vrVideoPlayPauseButton = null;
           vrVideoStopButton = null;
           vrVideoCloseButton = null;
