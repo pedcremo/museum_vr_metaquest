@@ -1,5 +1,5 @@
 // Bump cache name when changing service worker logic to force clients to update.
-const CACHE_NAME = "vr-gallery-shell-v3";
+const CACHE_NAME = "vr-gallery-shell-v4";
 const APP_SHELL = [
   "./",
   "./index.html",
