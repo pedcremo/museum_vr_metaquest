@@ -297,6 +297,7 @@
 
       // VR video screen state
       let vrVideoGroup = null;
+      let vrVideoScreen = null;
       let vrVideoElement = null;
       let vrVideoTexture = null;
       let vrVideoPlayPauseButton = null;
@@ -360,7 +361,11 @@
 
           const screen = new THREE.Mesh(
             new THREE.PlaneGeometry(width, height),
-            new THREE.MeshBasicMaterial({ map: vrVideoTexture, toneMapped: false })
+            new THREE.MeshBasicMaterial({
+              map: vrVideoTexture,
+              toneMapped: false,
+              side: THREE.DoubleSide,
+            })
           );
           screen.renderOrder = 999;
           screen.userData.vrVideoControl = "toggle"; // tap => toggle play/pause
@@ -369,8 +374,15 @@
           const closeSize = 0.16;
           const closeButton = new THREE.Mesh(
             new THREE.PlaneGeometry(closeSize, closeSize),
-            new THREE.MeshBasicMaterial({ color: 0xff4444 })
+            new THREE.MeshBasicMaterial({
+              color: 0xff4444,
+              transparent: true,
+              opacity: 0.9,
+              depthTest: false,
+              side: THREE.DoubleSide,
+            })
           );
+          closeButton.renderOrder = 1001;
           closeButton.position.set(
             width / 2 - closeSize / 2 - 0.04,
             height / 2 - closeSize / 2 - 0.04,
@@ -382,8 +394,15 @@
           const playPauseSize = 0.18;
           const playPauseButton = new THREE.Mesh(
             new THREE.PlaneGeometry(playPauseSize, playPauseSize),
-            new THREE.MeshBasicMaterial({ color: 0x44ff44 })
+            new THREE.MeshBasicMaterial({
+              color: 0x44ff44,
+              transparent: true,
+              opacity: 0.9,
+              depthTest: false,
+              side: THREE.DoubleSide,
+            })
           );
+          playPauseButton.renderOrder = 1001;
           playPauseButton.position.set(
             -width / 2 + playPauseSize / 2 + 0.08,
             -height / 2 + playPauseSize / 2 + 0.08,
@@ -395,8 +414,15 @@
           const recenterSize = 0.16;
           const recenterButton = new THREE.Mesh(
             new THREE.PlaneGeometry(recenterSize, recenterSize),
-            new THREE.MeshBasicMaterial({ color: 0x6666ff })
+            new THREE.MeshBasicMaterial({
+              color: 0x6666ff,
+              transparent: true,
+              opacity: 0.9,
+              depthTest: false,
+              side: THREE.DoubleSide,
+            })
           );
+          recenterButton.renderOrder = 1001;
           recenterButton.position.set(0, height / 2 - recenterSize / 2 - 0.12, 0.01);
           recenterButton.userData.vrVideoControl = "recenter";
 
@@ -405,8 +431,15 @@
           const seekBarHeight = 0.08;
           const seekBar = new THREE.Mesh(
             new THREE.PlaneGeometry(seekBarWidth, seekBarHeight),
-            new THREE.MeshBasicMaterial({ color: 0x333333 })
+            new THREE.MeshBasicMaterial({
+              color: 0x111111,
+              transparent: true,
+              opacity: 0.8,
+              depthTest: false,
+              side: THREE.DoubleSide,
+            })
           );
+          seekBar.renderOrder = 1001;
           seekBar.position.set(0, -height / 2 + 0.22, 0.01);
           seekBar.userData.vrVideoControl = "seek";
           seekBar.userData.barWidth = seekBarWidth;
@@ -414,8 +447,15 @@
 
           const seekFill = new THREE.Mesh(
             new THREE.PlaneGeometry(seekBarWidth, seekBarHeight),
-            new THREE.MeshBasicMaterial({ color: 0x00ff99 })
+            new THREE.MeshBasicMaterial({
+              color: 0x00ff99,
+              transparent: true,
+              opacity: 0.9,
+              depthTest: false,
+              side: THREE.DoubleSide,
+            })
           );
+          seekFill.renderOrder = 1002;
           seekFill.position.set(-seekBarWidth / 2, 0, 0.02);
           seekFill.scale.x = 0.01;
           seekFill.userData.isFill = true;
@@ -425,8 +465,15 @@
           const volumeBarHeight = height * 0.7;
           const volumeBar = new THREE.Mesh(
             new THREE.PlaneGeometry(volumeBarWidth, volumeBarHeight),
-            new THREE.MeshBasicMaterial({ color: 0x333333 })
+            new THREE.MeshBasicMaterial({
+              color: 0x111111,
+              transparent: true,
+              opacity: 0.8,
+              depthTest: false,
+              side: THREE.DoubleSide,
+            })
           );
+          volumeBar.renderOrder = 1001;
           volumeBar.position.set(width / 2 - volumeBarWidth / 2 - 0.06, 0, 0.01);
           volumeBar.userData.vrVideoControl = "volume";
           volumeBar.userData.barWidth = volumeBarWidth;
@@ -434,8 +481,15 @@
 
           const volumeFill = new THREE.Mesh(
             new THREE.PlaneGeometry(volumeBarWidth, volumeBarHeight),
-            new THREE.MeshBasicMaterial({ color: 0x44ccff })
+            new THREE.MeshBasicMaterial({
+              color: 0x44ccff,
+              transparent: true,
+              opacity: 0.9,
+              depthTest: false,
+              side: THREE.DoubleSide,
+            })
           );
+          volumeFill.renderOrder = 1002;
           volumeFill.position.set(0, -volumeBarHeight / 2, 0.02);
           volumeFill.scale.y = 0.5;
           volumeFill.userData.isFill = true;
@@ -444,8 +498,15 @@
           const dragSize = 0.14;
           const dragHandle = new THREE.Mesh(
             new THREE.PlaneGeometry(dragSize, dragSize),
-            new THREE.MeshBasicMaterial({ color: 0x9999ff })
+            new THREE.MeshBasicMaterial({
+              color: 0x9999ff,
+              transparent: true,
+              opacity: 0.9,
+              depthTest: false,
+              side: THREE.DoubleSide,
+            })
           );
+          dragHandle.renderOrder = 1001;
           dragHandle.position.set(
             -width / 2 + dragSize / 2 + 0.04,
             height / 2 - dragSize / 2 - 0.04,
@@ -506,9 +567,12 @@
           updateSeekFill();
           updateVolumeFill();
 
+          // Keep screen as a reference for toggle-on-tap, but avoid adding it to clickableObjects
+          // so it doesn't intercept raycasts intended for the smaller overlay controls.
+          vrVideoScreen = screen;
+
           if (clickableObjects && Array.isArray(clickableObjects)) {
             clickableObjects.push(
-              screen,
               seekBar,
               volumeBar,
               recenterButton,
@@ -593,6 +657,7 @@
             }
 
             vrVideoElement = null;
+            vrVideoScreen = null;
             vrVideoPlayPauseButton = null;
             vrVideoCloseButton = null;
             vrVideoSeekBar = null;
@@ -3016,7 +3081,18 @@
         raycaster.far = INTERACTION.maxDistance;
         const hits = raycaster.intersectObjects(clickableObjects, true);
         console.log("Hits:", hits.length);
-        const hit = pickInteractiveHit(hits);
+        let hit = pickInteractiveHit(hits);
+
+        // If we didn't hit a specific control, allow tapping the video screen itself
+        // to toggle play/pause (the screen is large and would otherwise intercept
+        // raycasts if added to clickableObjects directly).
+        if (!hit && vrVideoScreen) {
+          const screenHits = raycaster.intersectObject(vrVideoScreen, true);
+          if (screenHits.length) {
+            hit = screenHits[0];
+          }
+        }
+
         if (hit) {
           console.log("Picked hit:", hit.object.userData);
           handleInteractiveHit(hit);
