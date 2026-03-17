@@ -429,26 +429,6 @@
         };
       }
 
-      function ensureVrVideoDomHost() {
-        let host = document.getElementById("vr-video-dom-host");
-        if (host) return host;
-
-        host = document.createElement("div");
-        host.id = "vr-video-dom-host";
-        host.setAttribute("aria-hidden", "true");
-        host.style.position = "fixed";
-        host.style.left = "-10000px";
-        host.style.top = "0";
-        host.style.width = "4px";
-        host.style.height = "4px";
-        host.style.opacity = "0.001";
-        host.style.pointerEvents = "none";
-        host.style.overflow = "hidden";
-        host.style.zIndex = "-1";
-        document.body.appendChild(host);
-        return host;
-      }
-
       function getVrVideoControlObject(action) {
         switch (action) {
           case "toggle":
@@ -536,29 +516,22 @@
 
           vrVideoElement = document.createElement("video");
           vrVideoElement.crossOrigin = "anonymous";
-          vrVideoElement.setAttribute("crossorigin", "anonymous");
           vrVideoElement.src = src;
           vrVideoElement.loop = false;
           // Ensure we request inline playback on mobile/VR browsers
           vrVideoElement.playsInline = true;
           vrVideoElement.setAttribute("playsinline", "");
           vrVideoElement.setAttribute("webkit-playsinline", "");
-          vrVideoElement.setAttribute("preload", "auto");
           vrVideoElement.muted = false;
           vrVideoElement.preload = "auto";
           vrVideoElement.volume = 1;
           vrVideoElement.currentTime = 0;
-          vrVideoElement.style.width = "4px";
-          vrVideoElement.style.height = "4px";
-          vrVideoElement.style.objectFit = "cover";
-          ensureVrVideoDomHost().appendChild(vrVideoElement);
 
           vrVideoTexture = new THREE.VideoTexture(vrVideoElement);
-          vrVideoTexture.colorSpace = THREE.SRGBColorSpace;
+          vrVideoTexture.encoding = THREE.sRGBEncoding;
           vrVideoTexture.minFilter = THREE.LinearFilter;
           vrVideoTexture.magFilter = THREE.LinearFilter;
           vrVideoTexture.format = THREE.RGBAFormat;
-          vrVideoTexture.generateMipmaps = false;
 
           const VIDEO_SCREEN = {
             aspect: 16 / 9,
@@ -878,19 +851,6 @@
           vrVideoElement.addEventListener("pause", updatePlayPauseIndicator);
           vrVideoElement.addEventListener("timeupdate", updateSeekFill);
           vrVideoElement.addEventListener("volumechange", updateVolumeFill);
-          vrVideoElement.addEventListener("loadeddata", () => {
-            if (vrVideoTexture) {
-              vrVideoTexture.needsUpdate = true;
-            }
-          });
-          if (typeof vrVideoElement.requestVideoFrameCallback === "function") {
-            const requestFrame = () => {
-              if (!vrVideoElement || !vrVideoTexture) return;
-              vrVideoTexture.needsUpdate = true;
-              vrVideoElement.requestVideoFrameCallback(requestFrame);
-            };
-            vrVideoElement.requestVideoFrameCallback(requestFrame);
-          }
           updatePlayPauseIndicator();
           updateSeekFill();
           updateVolumeFill();
@@ -961,7 +921,6 @@
         try {
           if (vrVideoElement) {
             vrVideoElement.pause();
-            vrVideoElement.remove();
             vrVideoElement.removeAttribute("src");
             vrVideoElement.load();
           }
@@ -2053,13 +2012,6 @@
 
         // Update VR video UI indicators (seek/volume)
         if (vrVideoElement) {
-          if (
-            vrVideoTexture &&
-            vrVideoElement.readyState >= vrVideoElement.HAVE_CURRENT_DATA &&
-            !vrVideoElement.paused
-          ) {
-            vrVideoTexture.needsUpdate = true;
-          }
           if (vrVideoSeekBar && vrVideoSeekFill) {
             const duration = vrVideoElement.duration || 0;
             const progress = duration > 0 ? Math.min(1, Math.max(0, vrVideoElement.currentTime / duration)) : 0;
