@@ -111,6 +111,15 @@ test("wide artworks use multiple spotlights across the top edge", () => {
   assert.match(html, /painting\.lights\s*=\s*lights/);
 });
 
+test("quest uses a simplified glazing and environment path", () => {
+  assert.match(html, /const\s+questBrowser\s*=\s*isQuestBrowser\(\)/);
+  assert.match(html, /renderer\.setPixelRatio\(Math\.min\(window\.devicePixelRatio,\s*questBrowser \? 1\.1 : 2\)\)/);
+  assert.match(html, /if\s*\(questBrowser\)\s*{\s*const material = new THREE\.MeshStandardMaterial/);
+  assert.match(html, /questSimple:\s*true/);
+  assert.match(html, /if\s*\(questBrowser && renderer\.xr\.isPresenting && !force\)\s*return;/);
+  assert.match(html, /if\s*\(questBrowser\)\s*return;\s*[\s\S]*pmremGenerator\.fromEquirectangular/);
+});
+
 test("legacy titin audio easter egg is removed", () => {
   assert.doesNotMatch(html, /assets\/titin\.m4a/);
   assert.doesNotMatch(html, /const\s+EASTER_EGG\s*=/);
