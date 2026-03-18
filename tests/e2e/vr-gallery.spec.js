@@ -164,7 +164,7 @@ test("art lights sit above the frame tops", async ({ page }) => {
   }
 });
 
-test("wide artworks use a wider light cone", async ({ page }) => {
+test("wide artworks use multiple top lights", async ({ page }) => {
   await page.goto(`${serverInfo.baseUrl}/index.html?debug=1`, {
     waitUntil: "domcontentloaded",
   });
@@ -181,13 +181,20 @@ test("wide artworks use a wider light cone", async ({ page }) => {
     "assets/jardin_de_las_delicias.jpg",
     "assets/the_birth_of_venus.jpg",
   ]);
+  const tripleLightFiles = new Set([
+    "assets/the_school_of_athens.jpg",
+    "assets/the_night_watch.jpg",
+    "assets/the_last_supper.jpg",
+    "assets/jardin_de_las_delicias.jpg",
+  ]);
 
   for (const stat of stats) {
-    if (!stat.baseAngle) continue;
-    if (wideFiles.has(stat.file)) {
-      expect(stat.lightAngles[0]).toBeGreaterThan(stat.baseAngle * 1.4);
+    if (tripleLightFiles.has(stat.file)) {
+      expect(stat.lightCount).toBe(3);
+    } else if (wideFiles.has(stat.file)) {
+      expect(stat.lightCount).toBe(2);
     } else {
-      expect(stat.lightAngles[0]).toBeLessThanOrEqual(stat.baseAngle * 1.4);
+      expect(stat.lightCount).toBe(1);
     }
   }
 });

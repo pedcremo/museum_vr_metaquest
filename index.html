@@ -1821,11 +1821,11 @@
       hemi.position.set(0, 6.5, 0);
       registerLight(hemi, roomLights);
       registerTimeAwareLight(hemi, {
-        dayIntensity: 0.74,
-        nightIntensity: 0.12,
-        dayColor: 0xf8efe4,
-        nightColor: 0x5a7099,
-        dayGroundColor: 0x6b5748,
+        dayIntensity: 0.64,
+        nightIntensity: 0.16,
+        dayColor: 0xf7eddc,
+        nightColor: 0x666775,
+        dayGroundColor: 0x735f4d,
         nightGroundColor: 0x18141a,
       });
       scene.add(hemi);
@@ -1834,10 +1834,10 @@
       keyLight.position.set(3.8, 6.2, 2.8);
       registerLight(keyLight, roomLights);
       registerTimeAwareLight(keyLight, {
-        dayIntensity: 0.42,
-        nightIntensity: 0.06,
-        dayColor: 0xffe5c7,
-        nightColor: 0x6d7d99,
+        dayIntensity: 0.34,
+        nightIntensity: 0.08,
+        dayColor: 0xffe2c4,
+        nightColor: 0x726e7a,
       });
       scene.add(keyLight);
 
@@ -1845,20 +1845,20 @@
       fillLight.position.set(-4.6, 4.8, -3.2);
       registerLight(fillLight, roomLights);
       registerTimeAwareLight(fillLight, {
-        dayIntensity: 0.16,
-        nightIntensity: 0.03,
-        dayColor: 0xdbe7f6,
-        nightColor: 0x41597d,
+        dayIntensity: 0.1,
+        nightIntensity: 0.04,
+        dayColor: 0xf2e8db,
+        nightColor: 0x5a6272,
       });
       scene.add(fillLight);
 
       const ambient = new THREE.AmbientLight(0xf7efe4, 0.14);
       registerLight(ambient, roomLights);
       registerTimeAwareLight(ambient, {
-        dayIntensity: 0.14,
-        nightIntensity: 0.025,
+        dayIntensity: 0.1,
+        nightIntensity: 0.03,
         dayColor: 0xf7efe4,
-        nightColor: 0x6c7383,
+        nightColor: 0x6f6b73,
       });
       scene.add(ambient);
 
@@ -2299,10 +2299,10 @@
             nightColor: 0xf2f7ff,
             dayTransmission: 0.998,
             nightTransmission: 0.986,
-            dayRoughness: 0.005,
-            nightRoughness: 0.018,
-            dayEnvMapIntensity: 1.55,
-            nightEnvMapIntensity: 0.55,
+            dayRoughness: 0.008,
+            nightRoughness: 0.022,
+            dayEnvMapIntensity: 1.15,
+            nightEnvMapIntensity: 0.38,
             thickness: 0.022,
             ior: 1.5,
             clearcoat: 0.16,
@@ -2344,10 +2344,10 @@
         clerestoryLight.position.set(0, WALL.height + 1.15, 1.5);
         registerLight(clerestoryLight, roomLights);
         registerTimeAwareLight(clerestoryLight, {
-          dayIntensity: 0.48,
-          nightIntensity: 0.02,
-          dayColor: 0xe7f1ff,
-          nightColor: 0x53698e,
+          dayIntensity: 0.28,
+          nightIntensity: 0.03,
+          dayColor: 0xf4ead8,
+          nightColor: 0x655f6c,
         });
         group.add(clerestoryLight);
 
@@ -2579,10 +2579,10 @@
         nightColor = 0xf1f6ff,
         dayTransmission = 0.998,
         nightTransmission = 0.985,
-        dayRoughness = 0.006,
-        nightRoughness = 0.022,
-        dayEnvMapIntensity = 1.35,
-        nightEnvMapIntensity = 0.45,
+        dayRoughness = 0.008,
+        nightRoughness = 0.024,
+        dayEnvMapIntensity = 1.02,
+        nightEnvMapIntensity = 0.34,
         thickness = 0.026,
         ior = 1.5,
         clearcoat = 0.2,
@@ -2705,9 +2705,9 @@
         const height = canvas.height;
         ctx.clearRect(0, 0, width, height);
 
-        const skyTop = new THREE.Color(0x040b17).lerp(new THREE.Color(0x2d82dd), state.daylight);
-        const skyMid = new THREE.Color(0x0b1a31).lerp(new THREE.Color(0x77c0ff), state.daylight);
-        const skyBottom = new THREE.Color(0x1e3554).lerp(new THREE.Color(0xe8f6ff), state.daylight);
+        const skyTop = new THREE.Color(0x040b17).lerp(new THREE.Color(0x5f94c6), state.daylight);
+        const skyMid = new THREE.Color(0x0b1a31).lerp(new THREE.Color(0xaacde6), state.daylight);
+        const skyBottom = new THREE.Color(0x1e3554).lerp(new THREE.Color(0xf1ecdf), state.daylight);
         const gradient = ctx.createLinearGradient(0, 0, 0, height);
         gradient.addColorStop(0, cssFromColor(skyTop));
         gradient.addColorStop(0.56, cssFromColor(skyMid));
@@ -2734,7 +2734,7 @@
             const speed = 0.012 + i * 0.0018;
             const x = -cloudWidth + ((animationTime * speed + i * 0.14) % 1) * (width + cloudWidth * 2);
             const y = height * (0.18 + (i % 5) * 0.08);
-            const alpha = (0.16 + (i % 3) * 0.04) * state.daylight;
+            const alpha = (0.1 + (i % 3) * 0.025) * state.daylight;
             const cloud = ctx.createRadialGradient(x, y, cloudWidth * 0.08, x, y, cloudWidth * 0.58);
             cloud.addColorStop(0, `rgba(255, 255, 255, ${alpha})`);
             cloud.addColorStop(0.55, `rgba(255, 255, 255, ${alpha * 0.7})`);
@@ -2777,9 +2777,9 @@
         const size = canvas.width;
         ctx.clearRect(0, 0, size, size);
 
-        const skyTop = new THREE.Color(0x06101d).lerp(new THREE.Color(0x3d8fe8), state.daylight);
-        const skyMid = new THREE.Color(0x10213b).lerp(new THREE.Color(0x93d0ff), state.daylight);
-        const skyBottom = new THREE.Color(0x263a54).lerp(new THREE.Color(0xf0f9ff), state.daylight);
+        const skyTop = new THREE.Color(0x06101d).lerp(new THREE.Color(0x6a9acc), state.daylight);
+        const skyMid = new THREE.Color(0x10213b).lerp(new THREE.Color(0xb9d7eb), state.daylight);
+        const skyBottom = new THREE.Color(0x263a54).lerp(new THREE.Color(0xf6efe2), state.daylight);
         const sky = ctx.createLinearGradient(0, 0, 0, size * 0.72);
         sky.addColorStop(0, cssFromColor(skyTop));
         sky.addColorStop(0.5, cssFromColor(skyMid));
@@ -2880,10 +2880,10 @@
 
         const state = getTimeOfDayState(now);
         currentTimeOfDayState = state;
-        const bgDay = new THREE.Color(0xe2ecf5);
+        const bgDay = new THREE.Color(0xe9e2d7);
         const bgNight = new THREE.Color(0x0c1520);
         scene.background.copy(bgNight).lerp(bgDay, state.daylight);
-        renderer.toneMappingExposure = THREE.MathUtils.lerp(0.78, 1.08, state.daylight);
+        renderer.toneMappingExposure = THREE.MathUtils.lerp(0.8, 0.96, state.daylight);
 
         timeAwareLights.forEach((light) => {
           const dayIntensity = light.userData.dayIntensity ?? light.userData.baseIntensity ?? light.intensity;
@@ -2917,7 +2917,7 @@
           entry.material.color.copy(entry.nightColor).lerp(entry.dayColor, state.daylight);
         });
 
-        sunlightPatchMat.opacity = state.daylight * 0.96;
+        sunlightPatchMat.opacity = state.daylight * 0.68;
         setLightGroup(roomLights, roomLightsOn);
       }
 
@@ -4117,14 +4117,50 @@
           metalness: 0.05,
         });
 
+        const doorMap = woodTextures.map.clone();
+        doorMap.wrapS = doorMap.wrapT = THREE.RepeatWrapping;
+        doorMap.repeat.set(1.35, 1);
+        doorMap.colorSpace = THREE.SRGBColorSpace;
+
+        const doorBump = woodTextures.bump.clone();
+        doorBump.wrapS = doorBump.wrapT = THREE.RepeatWrapping;
+        doorBump.repeat.copy(doorMap.repeat);
+
+        const doorRough = woodTextures.rough.clone();
+        doorRough.wrapS = doorRough.wrapT = THREE.RepeatWrapping;
+        doorRough.repeat.copy(doorMap.repeat);
+
         const doorMat = new THREE.MeshStandardMaterial({
-          map: woodTextures.map,
-          bumpMap: woodTextures.bump,
-          bumpScale: 0.03,
-          roughnessMap: woodTextures.rough,
-          roughness: 0.64,
+          map: doorMap,
+          bumpMap: doorBump,
+          bumpScale: 0.042,
+          roughnessMap: doorRough,
+          roughness: 0.6,
           metalness: 0.04,
-          color: 0x8f5f35,
+          color: 0x8a5a31,
+        });
+        const doorTrimMat = new THREE.MeshStandardMaterial({
+          map: doorMap,
+          bumpMap: doorBump,
+          bumpScale: 0.02,
+          roughnessMap: doorRough,
+          roughness: 0.56,
+          metalness: 0.04,
+          color: 0xa16d40,
+        });
+        const doorInsetMat = new THREE.MeshStandardMaterial({
+          map: doorMap,
+          bumpMap: doorBump,
+          bumpScale: 0.014,
+          roughnessMap: doorRough,
+          roughness: 0.72,
+          metalness: 0.02,
+          color: 0x754722,
+        });
+        const hardwareMat = new THREE.MeshStandardMaterial({
+          color: 0xb7925f,
+          roughness: 0.3,
+          metalness: 0.82,
         });
 
         const doorWidth = DOOR.width;
@@ -4147,68 +4183,128 @@
           doorMat
         );
         door.position.set(doorWidth / 2, doorHeight / 2, 0);
+
+        const trimDepth = doorDepth * 0.2;
+        const insetDepth = doorDepth * 0.11;
+        const faceOffset = doorDepth / 2 + trimDepth / 2 - 0.002;
+        const insetOffset = doorDepth / 2 - insetDepth / 2 - 0.008;
+        const stileWidth = 0.16;
+        const railHeight = 0.17;
+        const midRailHeight = 0.14;
+        const panelFrameThickness = 0.055;
+        const panelWidth = doorWidth - 0.58;
+        const upperPanelHeight = 0.72;
+        const lowerPanelHeight = 0.9;
+        const upperPanelY = 0.44;
+        const lowerPanelY = -0.5;
+
+        const addPanelTrim = (centerY, panelHeight, side) => {
+          const z = side * faceOffset;
+          const frameHeight = panelHeight + panelFrameThickness * 2;
+          const frameWidth = panelWidth + panelFrameThickness * 2;
+
+          const leftTrim = new THREE.Mesh(
+            new THREE.BoxGeometry(panelFrameThickness, frameHeight, trimDepth),
+            doorTrimMat
+          );
+          leftTrim.position.set(-(frameWidth / 2 - panelFrameThickness / 2), centerY, z);
+
+          const rightTrim = leftTrim.clone();
+          rightTrim.position.x *= -1;
+
+          const topTrim = new THREE.Mesh(
+            new THREE.BoxGeometry(frameWidth, panelFrameThickness, trimDepth),
+            doorTrimMat
+          );
+          topTrim.position.set(0, centerY + frameHeight / 2 - panelFrameThickness / 2, z);
+
+          const bottomTrim = topTrim.clone();
+          bottomTrim.position.y = centerY - frameHeight / 2 + panelFrameThickness / 2;
+
+          door.add(leftTrim, rightTrim, topTrim, bottomTrim);
+        };
+
+        [-1, 1].forEach((side) => {
+          const zTrim = side * faceOffset;
+          const zInset = side * insetOffset;
+          const stileX = doorWidth / 2 - stileWidth / 2 - 0.09;
+          const railWidth = doorWidth - 0.18;
+
+          const leftStile = new THREE.Mesh(
+            new THREE.BoxGeometry(stileWidth, doorHeight - 0.12, trimDepth),
+            doorTrimMat
+          );
+          leftStile.position.set(-stileX, 0, zTrim);
+
+          const rightStile = leftStile.clone();
+          rightStile.position.x = stileX;
+
+          const topRail = new THREE.Mesh(
+            new THREE.BoxGeometry(railWidth, railHeight, trimDepth),
+            doorTrimMat
+          );
+          topRail.position.set(0, doorHeight / 2 - railHeight / 2 - 0.08, zTrim);
+
+          const bottomRail = topRail.clone();
+          bottomRail.position.y = -doorHeight / 2 + railHeight / 2 + 0.08;
+
+          const middleRail = new THREE.Mesh(
+            new THREE.BoxGeometry(railWidth - 0.1, midRailHeight, trimDepth),
+            doorTrimMat
+          );
+          middleRail.position.set(0, -0.03, zTrim);
+
+          const upperPanel = new THREE.Mesh(
+            new THREE.BoxGeometry(panelWidth, upperPanelHeight, insetDepth),
+            doorInsetMat
+          );
+          upperPanel.position.set(0, upperPanelY, zInset);
+
+          const lowerPanel = new THREE.Mesh(
+            new THREE.BoxGeometry(panelWidth, lowerPanelHeight, insetDepth),
+            doorInsetMat
+          );
+          lowerPanel.position.set(0, lowerPanelY, zInset);
+
+          addPanelTrim(upperPanelY, upperPanelHeight, side);
+          addPanelTrim(lowerPanelY, lowerPanelHeight, side);
+
+          const backplate = new THREE.Mesh(
+            new THREE.BoxGeometry(0.08, 0.32, 0.012),
+            hardwareMat
+          );
+          backplate.position.set(doorWidth / 2 - 0.18, -0.08, side * (doorDepth / 2 + 0.006));
+
+          const handleStem = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.012, 0.012, 0.04, 18),
+            hardwareMat
+          );
+          handleStem.rotation.x = Math.PI / 2;
+          handleStem.position.set(doorWidth / 2 - 0.18, -0.08, side * (doorDepth / 2 + 0.02));
+
+          const handleGrip = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.011, 0.011, 0.18, 18),
+            hardwareMat
+          );
+          handleGrip.rotation.z = Math.PI / 2;
+          handleGrip.position.set(doorWidth / 2 - 0.095, -0.08, side * (doorDepth / 2 + 0.03));
+
+          door.add(
+            leftStile,
+            rightStile,
+            topRail,
+            bottomRail,
+            middleRail,
+            upperPanel,
+            lowerPanel,
+            backplate,
+            handleStem,
+            handleGrip
+          );
+        });
+
         doorPivot.add(door);
         scene.add(doorPivot);
-
-        const daylight = new THREE.DirectionalLight(0xdce9ff, 0.3);
-        daylight.position.set(0, ROOM.height * 0.8, -ROOM.depth / 2 - 3);
-        daylight.target.position.set(0, ROOM.height * 0.6, 0);
-        registerLight(daylight, roomLights);
-        registerTimeAwareLight(daylight, {
-          dayIntensity: 0.3,
-          nightIntensity: 0.0,
-          dayColor: 0xdce9ff,
-          nightColor: 0x203148,
-        });
-        scene.add(daylight);
-        scene.add(daylight.target);
-
-        const windowFrameMat = new THREE.MeshStandardMaterial({
-          color: 0xf1e8dc,
-          roughness: 0.48,
-          metalness: 0.05,
-        });
-        const windowTrimMat = new THREE.MeshStandardMaterial({
-          color: 0xe1d4c6,
-          roughness: 0.55,
-          metalness: 0.05,
-        });
-        const glassMat = createTimeAwareGlassMaterial({
-          dayColor: 0xffffff,
-          nightColor: 0xf1f6ff,
-          dayTransmission: 0.997,
-          nightTransmission: 0.982,
-          dayRoughness: 0.006,
-          nightRoughness: 0.02,
-          dayEnvMapIntensity: 1.4,
-          nightEnvMapIntensity: 0.5,
-          thickness: 0.024,
-          ior: 1.5,
-          clearcoat: 0.18,
-          clearcoatRoughness: 0.018,
-        });
-
-        const forestSurface = createDynamicExteriorSurface({ mode: "forest" });
-        const forestMat = new THREE.MeshBasicMaterial({
-          map: forestSurface.texture,
-        });
-
-        const windowWidth = WINDOW.width;
-        const windowHeight = WINDOW.height;
-        const windowY = WALL.height / 2;
-        const inset = 0.08;
-
-        addWindow(
-          new THREE.Vector3(0, windowY, -ROOM.depth / 2 + inset),
-          0,
-          windowWidth,
-          windowHeight,
-          windowFrameMat,
-          windowTrimMat,
-          glassMat,
-          forestMat
-        );
-        addWindowSunlightPatch();
       }
 
       function addWindow(position, rotationY, width, height, frameMat, trimMat, glassMat, forestMat) {
@@ -4275,10 +4371,10 @@
         light.position.y = position.y + 0.1;
         registerLight(light, roomLights);
         registerTimeAwareLight(light, {
-          dayIntensity: 0.52,
+          dayIntensity: 0.28,
           nightIntensity: 0.04,
-          dayColor: 0xd9e6ff,
-          nightColor: 0x52688b,
+          dayColor: 0xf5ead8,
+          nightColor: 0x625d69,
         });
         scene.add(light);
       }
@@ -4808,8 +4904,10 @@
         );
         const tangent = new THREE.Vector3().crossVectors(up, normal).normalize();
 
-        const size = Math.max(placement.width ?? 1, placement.height ?? 1);
-        const frameHeight = (placement.height ?? 1) * (painting.frameScale ?? 1.05);
+        const targetWidth = placement.width ?? 1;
+        const targetHeight = placement.height ?? 1;
+        const size = Math.max(targetWidth, targetHeight);
+        const frameHeight = targetHeight * (painting.frameScale ?? 1.05);
         const frameTopY = placement.position.y + frameHeight / 2;
         const baseAngle = THREE.MathUtils.clamp(
           Math.PI / 9 + size * 0.05,
@@ -4817,28 +4915,40 @@
           Math.PI * 0.42
         );
         const isWide = WIDE_LIGHT_ARTWORKS.has(painting.art?.file);
-        const distance = isWide ? 7 + size * 1.4 : 6 + size * 1.1;
+        const lightCount = isWide ? (targetWidth >= 3.6 ? 3 : 2) : 1;
+        const distance = isWide ? 7.2 + size * 1.3 : 6 + size * 1.1;
         const angle = isWide
-          ? THREE.MathUtils.clamp(baseAngle * 1.6, Math.PI / 8, Math.PI * 0.55)
+          ? THREE.MathUtils.clamp(baseAngle * (lightCount === 3 ? 1.02 : 1.12), Math.PI / 9, Math.PI * 0.44)
           : baseAngle;
-        const intensity = isWide ? 2.6 : 2.0;
-        const penumbra = isWide ? 0.8 : 0.6;
-        const light = new THREE.SpotLight(0xfff4e8, intensity, distance, angle, penumbra, 1.7);
-        light.position.copy(placement.position);
-        light.position.y = frameTopY + LIGHT_ABOVE_FRAME;
-        light.position.addScaledVector(normal, LIGHT_FRONT_OFFSET);
+        const intensity = lightCount === 3 ? 1.85 : lightCount === 2 ? 2.15 : 2.0;
+        const penumbra = isWide ? 0.72 : 0.6;
+        const offsetScale = lightCount === 3 ? 0.24 : 0.2;
+        const offsetLimit = lightCount === 3 ? 1.55 : 0.92;
+        const maxOffset = isWide ? Math.min(targetWidth * offsetScale, offsetLimit) : 0;
+        const lightOffsets = lightCount === 3 ? [-maxOffset, 0, maxOffset] : lightCount === 2 ? [-maxOffset, maxOffset] : [0];
+        const lights = [];
 
-        light.target.position.copy(placement.position);
-        light.target.position.addScaledVector(normal, 0.1);
-        light.target.position.y = placement.position.y;
+        lightOffsets.forEach((offset) => {
+          const light = new THREE.SpotLight(0xfff4e8, intensity, distance, angle, penumbra, 1.7);
+          light.position.copy(placement.position);
+          light.position.addScaledVector(tangent, offset);
+          light.position.y = frameTopY + LIGHT_ABOVE_FRAME;
+          light.position.addScaledVector(normal, LIGHT_FRONT_OFFSET);
 
-        registerLight(light, artLights);
-        scene.add(light);
-        scene.add(light.target);
+          light.target.position.copy(placement.position);
+          light.target.position.addScaledVector(tangent, offset * 0.9);
+          light.target.position.addScaledVector(normal, 0.1);
+          light.target.position.y = placement.position.y + targetHeight * 0.04;
 
-        painting.lights = [light];
-        painting.light = light;
-        painting.lightMeta = { baseAngle, angle, isWide };
+          registerLight(light, artLights);
+          scene.add(light);
+          scene.add(light.target);
+          lights.push(light);
+        });
+
+        painting.lights = lights;
+        painting.light = lights[0];
+        painting.lightMeta = { baseAngle, angle, isWide, lightCount };
       }
 
       function applyTexture(state, texture) {

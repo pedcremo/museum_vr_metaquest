@@ -92,6 +92,24 @@ test("vault clerestory glazing reacts to local time of day", () => {
   assert.match(html, /sunlightPatchMat\.opacity\s*=/);
 });
 
+test("back wall window is removed and the door has physical detailing", () => {
+  assert.doesNotMatch(html, /addWindowSunlightPatch\(\);/);
+  assert.doesNotMatch(html, /new THREE\.Vector3\(0,\s*windowY,\s*-ROOM\.depth \/ 2 \+ inset\)/);
+  assert.match(html, /const\s+doorTrimMat\s*=\s*new THREE\.MeshStandardMaterial/);
+  assert.match(html, /const\s+doorInsetMat\s*=\s*new THREE\.MeshStandardMaterial/);
+  assert.match(html, /const\s+hardwareMat\s*=\s*new THREE\.MeshStandardMaterial/);
+  assert.match(html, /const\s+handleGrip\s*=\s*new THREE\.Mesh/);
+});
+
+test("wide artworks use multiple spotlights across the top edge", () => {
+  assert.match(html, /const\s+lightCount\s*=\s*isWide\s*\?\s*\(targetWidth >= 3\.6 \? 3 : 2\)\s*:\s*1/);
+  assert.match(html, /const\s+lightOffsets\s*=\s*lightCount === 3/);
+  assert.match(html, /lightOffsets\.forEach\(\(offset\)\s*=>/);
+  assert.match(html, /light\.position\.addScaledVector\(tangent,\s*offset\)/);
+  assert.match(html, /light\.target\.position\.addScaledVector\(tangent,\s*offset \* 0\.9\)/);
+  assert.match(html, /painting\.lights\s*=\s*lights/);
+});
+
 test("legacy titin audio easter egg is removed", () => {
   assert.doesNotMatch(html, /assets\/titin\.m4a/);
   assert.doesNotMatch(html, /const\s+EASTER_EGG\s*=/);
