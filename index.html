@@ -271,7 +271,7 @@
         "assets/the_school_of_athens.jpg",
         "assets/the_night_watch.jpg",
         "assets/the_last_supper.jpg",
-        "assets/the_creation_of_adam.jpg",
+        "assets/jardin_de_las_delicias.jpg",
         "assets/the_birth_of_venus.jpg",
       ]);
       const LOCOMOTION = {
@@ -289,12 +289,6 @@
         validColor: 0x62d986,
         invalidColor: 0xef6b5b,
       };
-      const EASTER_EGG = {
-        paintingTitle: "Girl with a Pearl Earring",
-        audioFile: "assets/titin.m4a",
-        tapCount: 7,
-        maxGapMs: 1400,
-      };
       // Map painting titles to video guide files (relative to project root)
       const VIDEO_GUIDES = {
         "The School of Athens": "assets/audioguides/escuela_de_atenas.mp4",
@@ -304,6 +298,9 @@
         "American Gothic": "assets/audioguides/gotico_americano.mp4",
         "The Birth of Venus": "assets/audioguides/birth_of_venus.mp4",
         "The Starry Night": "assets/audioguides/starry_night.mp4",
+        "The Night Watch": "assets/audioguides/the_night_watch.mp4",
+        "The Garden of Earthly Delights": "assets/audioguides/jardin_de_las_delicias.mp4",
+        "The Last Supper": "assets/audioguides/last_supper.mp4",
       };
 
       // VR video screen state
@@ -1114,6 +1111,7 @@
       const colliders = [];
       const controllers = [];
       const artworkViewingSpots = [];
+      const animatedFountains = [];
       const desktopKeys = { w: false, a: false, s: false, d: false, up: false, down: false, shift: false };
       let ceilingMesh = null;
       let ceilingFrescoMesh = null;
@@ -1124,15 +1122,6 @@
       let teleportController = null;
       let pointerLocked = false;
       let desktopFlightEnabled = true;
-      let easterEggTapCount = 0;
-      let easterEggLastTapAt = 0;
-      let easterEggAudio = null;
-      let easterEggFeedbackGroup = null;
-      let easterEggFeedbackTime = 0;
-      const EASTER_EGG_FEEDBACK = {
-        duration: 0.35, // seconds
-        maxScale: 1.2,
-      };
 
       const ARTWORKS = [
         {
@@ -1184,15 +1173,15 @@
           wall: "left",
         },
         {
-          title: "The Creation of Adam",
-          artist: "Michelangelo",
-          year: "c. 1511",
+          title: "The Garden of Earthly Delights",
+          artist: "Hieronymus Bosch (El Bosco)",
+          year: "c. 1490-1510",
           synopsis:
-            "El casi contacto entre las manos concentra una visión poderosa sobre origen, energía divina y dignidad humana.",
+            "Triptico desbordante de simbolos, placer, fragilidad y castigo, donde El Bosco convierte la imaginacion moral en un paisaje fascinante e inquietante.",
           hasAudioGuide: true,
-          file: "assets/the_creation_of_adam.jpg",
-          widthM: 5.7,
-          heightM: 2.8,
+          file: "assets/jardin_de_las_delicias.jpg",
+          widthM: 3.89,
+          heightM: 2.2,
           wall: "frontRight",
         },
         {
@@ -2010,6 +1999,7 @@
 
       renderer.setAnimationLoop(() => {
         const delta = clock.getDelta();
+        const elapsed = clock.elapsedTime;
         const useOrbit = !renderer.xr.isPresenting && !pointerLocked;
         controls.enabled = useOrbit;
         if (useOrbit) {
@@ -2019,17 +2009,7 @@
         updateTeleportTarget();
         updateDesktopMovement(delta);
         updateMovement(delta);
-
-        // Pulsing feedback when the easter egg audio plays.
-        if (easterEggFeedbackTime > 0 && easterEggFeedbackGroup) {
-          easterEggFeedbackTime = Math.max(0, easterEggFeedbackTime - delta);
-          const t = easterEggFeedbackTime / EASTER_EGG_FEEDBACK.duration;
-          const scale = 1 + (EASTER_EGG_FEEDBACK.maxScale - 1) * t;
-          easterEggFeedbackGroup.scale.set(scale, scale, scale);
-          if (easterEggFeedbackTime === 0) {
-            easterEggFeedbackGroup.scale.set(1, 1, 1);
-          }
-        }
+        updateAnimatedFountains(elapsed);
 
         camera.getWorldPosition(tmpCamPos);
 
@@ -2544,13 +2524,6 @@
             showVideoPlayer(VIDEO_GUIDES[title], title);
             return true;
           }
-          // If the badge belongs to the easter egg painting, play audio
-          if (title === EASTER_EGG.paintingTitle) {
-            playEasterEggAudio();
-            return true;
-          }
-          // fallback to easter egg audio behaviour if no video found
-          playEasterEggAudio();
           return true;
         }
 
@@ -2591,80 +2564,7 @@
           focusPainting(paintingState);
         }
 
-        if (paintingState.art?.title === EASTER_EGG.paintingTitle) {
-          registerEasterEggTap();
-        }
-
         return true;
-      }
-
-      function getEasterEggAudio() {
-        if (!easterEggAudio) {
-          easterEggAudio = new Audio(EASTER_EGG.audioFile);
-          easterEggAudio.preload = "auto";
-        }
-        return easterEggAudio;
-      }
-
-      function playEasterEggAudio() {
-        const audio = getEasterEggAudio();
-        // Some browsers / platforms (Quest Browser, older WebView engines) do not
-        // support the m4a/AAC container. In that case `audio.play()` may throw
-        // NotSupportedError "element has no supported sources".
-        // We'll avoid that error by checking canPlayType first and falling back
-        // to a simple beep when needed.
-        const canPlay = typeof audio.canPlayType === "function" &&
-          (audio.canPlayType("audio/mp4; codecs=\"mp4a.40.2\"") ||
-            audio.canPlayType("audio/mpeg") ||
-            audio.canPlayType("audio/ogg"));
-
-        easterEggFeedbackTime = EASTER_EGG_FEEDBACK.duration;
-
-        if (!canPlay) {
-          playEasterEggBeep();
-          return;
-        }
-
-        audio.currentTime = 0;
-        audio
-          .play()
-          .catch((error) => console.warn("Failed to play easter egg audio", error));
-      }
-
-      function playEasterEggBeep() {
-        if (!window.AudioContext && !window.webkitAudioContext) return;
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = "sine";
-        osc.frequency.value = 440;
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.15, ctx.currentTime + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.22);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.22);
-      }
-
-      function registerEasterEggTap(now = performance.now()) {
-        if (now - easterEggLastTapAt > EASTER_EGG.maxGapMs) {
-          easterEggTapCount = 0;
-        }
-
-        easterEggLastTapAt = now;
-        easterEggTapCount += 1;
-
-        if (easterEggTapCount < EASTER_EGG.tapCount) return;
-
-        easterEggTapCount = 0;
-        easterEggLastTapAt = 0;
-
-        const audio = getEasterEggAudio();
-        audio.currentTime = 0;
-        audio.play().catch((error) => {
-          console.warn("Failed to play easter egg audio", error);
-        });
       }
 
       function pickInteractiveHit(hits) {
@@ -2947,6 +2847,30 @@
           emissive: new THREE.Color(0x7fc8ff),
           emissiveIntensity: 0.15,
         });
+        const streamMat = waterMat.clone();
+        streamMat.opacity = 0.52;
+        streamMat.emissiveIntensity = 0.22;
+        streamMat.depthWrite = false;
+        const surfaceMat = waterMat.clone();
+        surfaceMat.opacity = 0.72;
+        surfaceMat.emissiveIntensity = 0.2;
+        surfaceMat.depthWrite = false;
+        const rippleMat = new THREE.MeshBasicMaterial({
+          color: 0xe6fbff,
+          transparent: true,
+          opacity: 0.0,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+          toneMapped: false,
+        });
+        const splashMat = new THREE.MeshBasicMaterial({
+          color: 0xdff6ff,
+          transparent: true,
+          opacity: 0.24,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+          toneMapped: false,
+        });
 
         const body = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.9, 0.32), metalMat);
         body.position.y = 0.45;
@@ -2956,27 +2880,121 @@
         basin.position.set(0, 0.92, 0.05);
         group.add(basin);
 
-        const basinTop = new THREE.Mesh(new THREE.CircleGeometry(0.22, 24), basinMat);
-        basinTop.rotation.x = -Math.PI / 2;
-        basinTop.position.set(0, 0.98, 0.05);
-        group.add(basinTop);
+        const basinWater = new THREE.Mesh(new THREE.CircleGeometry(0.21, 28), surfaceMat);
+        basinWater.rotation.x = -Math.PI / 2;
+        basinWater.position.set(0, 0.985, 0.05);
+        group.add(basinWater);
 
         const spout = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.16, 16), metalMat);
         spout.rotation.z = Math.PI / 2;
         spout.position.set(0.12, 1.02, 0.12);
         group.add(spout);
 
-        const waterStream = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.012, 0.12, 12), waterMat);
+        const waterStream = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.012, 0.12, 12), streamMat);
         waterStream.position.set(0.16, 0.95, 0.12);
         waterStream.rotation.z = Math.PI / 2.6;
         group.add(waterStream);
+
+        const rippleOffsets = [0.05, 0.38, 0.72];
+        const rippleMeshes = rippleOffsets.map((phase, index) => {
+          const ripple = new THREE.Mesh(
+            new THREE.RingGeometry(0.02, 0.06, 24),
+            rippleMat.clone()
+          );
+          ripple.rotation.x = -Math.PI / 2;
+          ripple.position.set(0.01, 0.986 + index * 0.0006, 0.055);
+          group.add(ripple);
+          return { mesh: ripple, phase };
+        });
+
+        const splash = new THREE.Mesh(new THREE.CircleGeometry(0.05, 24), splashMat);
+        splash.rotation.x = -Math.PI / 2;
+        splash.position.set(0.03, 0.987, 0.075);
+        group.add(splash);
+
+        const dropletCurve = new THREE.CatmullRomCurve3([
+          new THREE.Vector3(0.16, 1.01, 0.12),
+          new THREE.Vector3(0.14, 0.995, 0.12),
+          new THREE.Vector3(0.1, 0.98, 0.105),
+          new THREE.Vector3(0.06, 0.972, 0.085),
+          new THREE.Vector3(0.03, 0.988, 0.075),
+        ]);
+        const dropletOffsets = [0.02, 0.18, 0.34, 0.5, 0.66, 0.82];
+        const droplets = dropletOffsets.map((offset, index) => {
+          const dropletMat = new THREE.MeshBasicMaterial({
+            color: 0xdff6ff,
+            transparent: true,
+            opacity: 0.62,
+            depthWrite: false,
+            toneMapped: false,
+          });
+          const droplet = new THREE.Mesh(
+            new THREE.SphereGeometry(0.009 + (index % 3) * 0.002, 10, 10),
+            dropletMat
+          );
+          group.add(droplet);
+          return {
+            mesh: droplet,
+            offset,
+            baseScale: 0.9 + (index % 2) * 0.18,
+          };
+        });
 
         const drain = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.02, 16), metalMat);
         drain.rotation.x = Math.PI / 2;
         drain.position.set(0, 0.92, 0.05);
         group.add(drain);
 
+        animatedFountains.push({
+          stream: waterStream,
+          surface: basinWater,
+          splash,
+          ripples: rippleMeshes,
+          droplets,
+          dropletCurve,
+          baseSurfaceY: basinWater.position.y,
+        });
+
         return group;
+      }
+
+      function updateAnimatedFountains(elapsed) {
+        if (!animatedFountains.length) return;
+
+        animatedFountains.forEach((fountain, fountainIndex) => {
+          const time = elapsed * 1.35 + fountainIndex * 0.41;
+
+          const streamPulse = 0.92 + Math.sin(time * 9.5) * 0.08;
+          const streamWidth = 0.94 + Math.cos(time * 7.2) * 0.06;
+          fountain.stream.scale.set(streamWidth, streamPulse, streamWidth);
+          fountain.stream.material.opacity = 0.46 + (Math.sin(time * 8.6) + 1) * 0.04;
+          fountain.stream.material.emissiveIntensity = 0.16 + (Math.sin(time * 6.8) + 1) * 0.045;
+
+          const surfaceScale = 1 + Math.sin(time * 3.4) * 0.02;
+          fountain.surface.scale.set(surfaceScale, surfaceScale, 1);
+          fountain.surface.position.y = fountain.baseSurfaceY + Math.sin(time * 4.2) * 0.0025;
+          fountain.surface.material.emissiveIntensity = 0.18 + (Math.sin(time * 5.1) + 1) * 0.03;
+
+          fountain.splash.scale.setScalar(0.9 + (Math.sin(time * 10.2) + 1) * 0.09);
+          fountain.splash.material.opacity = 0.1 + (Math.sin(time * 11.4) + 1) * 0.08;
+
+          fountain.ripples.forEach(({ mesh, phase }, rippleIndex) => {
+            const progress = (time * 0.58 + phase) % 1;
+            const scale = 0.35 + progress * 1.25;
+            mesh.scale.set(scale, scale, 1);
+            mesh.material.opacity = (1 - progress) * 0.25;
+            mesh.position.y = fountain.baseSurfaceY + 0.001 + rippleIndex * 0.0006;
+          });
+
+          fountain.droplets.forEach((droplet, dropletIndex) => {
+            const t = (time * 0.9 + droplet.offset) % 1;
+            const point = fountain.dropletCurve.getPointAt(t);
+            const pulse = 0.82 + Math.sin(time * 8.8 + dropletIndex * 1.7) * 0.16;
+            droplet.mesh.position.copy(point);
+            droplet.mesh.scale.setScalar(droplet.baseScale * pulse);
+            droplet.mesh.material.opacity = 0.38 + (1 - Math.abs(t - 0.5) * 2) * 0.26;
+          });
+        });
       }
 
       function addSwitches() {
@@ -3157,11 +3175,6 @@
           face.userData.paintingTitle = art.title;
         }
 
-        // Keep a reference to pulse the info card when the audio plays.
-        if (art.title === EASTER_EGG.paintingTitle && art.hasAudioGuide) {
-          easterEggFeedbackGroup = group;
-        }
-
         return {
           group,
           width,
@@ -3248,7 +3261,7 @@
 
         ctx.fillStyle = "#edf8f2";
         ctx.font = "bold 28px 'IBM Plex Sans', sans-serif";
-        ctx.fillText("Video guía", x + 86, y + 45);
+        ctx.fillText("Video", x + 86, y + 45);
       }
 
       function makeFocusButtonTexture() {

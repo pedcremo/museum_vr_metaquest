@@ -178,7 +178,7 @@ test("wide artworks use a wider light cone", async ({ page }) => {
     "assets/the_school_of_athens.jpg",
     "assets/the_night_watch.jpg",
     "assets/the_last_supper.jpg",
-    "assets/the_creation_of_adam.jpg",
+    "assets/jardin_de_las_delicias.jpg",
     "assets/the_birth_of_venus.jpg",
   ]);
 
