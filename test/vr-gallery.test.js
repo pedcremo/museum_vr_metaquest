@@ -95,6 +95,7 @@ test("vault clerestory glazing reacts to local time of day", () => {
 test("back wall window is removed and the door has physical detailing", () => {
   assert.doesNotMatch(html, /addWindowSunlightPatch\(\);/);
   assert.doesNotMatch(html, /new THREE\.Vector3\(0,\s*windowY,\s*-ROOM\.depth \/ 2 \+ inset\)/);
+  assert.match(html, /doorPivot\.rotation\.y = 0\.38/);
   assert.match(html, /const\s+doorTrimMat\s*=\s*new THREE\.MeshStandardMaterial/);
   assert.match(html, /const\s+doorInsetMat\s*=\s*new THREE\.MeshStandardMaterial/);
   assert.match(html, /const\s+hardwareMat\s*=\s*new THREE\.MeshStandardMaterial/);
