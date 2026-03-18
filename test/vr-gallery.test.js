@@ -16,6 +16,27 @@ const birthOfVenusGuidePath = path.join(
   "audioguides",
   "birth_of_venus.mp4"
 );
+const lastSupperGuidePath = path.join(
+  __dirname,
+  "..",
+  "assets",
+  "audioguides",
+  "last_supper.mp4"
+);
+const nightWatchGuidePath = path.join(
+  __dirname,
+  "..",
+  "assets",
+  "audioguides",
+  "the_night_watch.mp4"
+);
+const gardenOfEarthlyDelightsGuidePath = path.join(
+  __dirname,
+  "..",
+  "assets",
+  "audioguides",
+  "jardin_de_las_delicias.mp4"
+);
 
 test("index.html boots WebXR correctly", () => {
   assert.match(html, /renderer\.xr\.enabled\s*=\s*true/);
@@ -52,13 +73,10 @@ test("web app launch is configured for fullscreen-capable installs", () => {
   assert.ok(sw.includes("https://unpkg.com"));
 });
 
-test("girl with a pearl earring easter egg audio is wired", () => {
-  assert.match(html, /const\s+EASTER_EGG\s*=\s*{[\s\S]*paintingTitle:\s*"Girl with a Pearl Earring"/);
-  assert.match(html, /audioFile:\s*"assets\/titin\.m4a"/);
-  assert.match(html, /tapCount:\s*7/);
-  assert.match(html, /function\s+handlePaintingHit\s*\(/);
-  assert.match(html, /new Audio\(EASTER_EGG\.audioFile\)/);
-  assert.match(html, /clickableObjects\.push\(plane,\s*frame\)/);
+test("legacy titin audio easter egg is removed", () => {
+  assert.doesNotMatch(html, /assets\/titin\.m4a/);
+  assert.doesNotMatch(html, /const\s+EASTER_EGG\s*=/);
+  assert.doesNotMatch(html, /new Audio\(/);
 });
 
 test("quest artwork approach aids are present", () => {
@@ -109,6 +127,15 @@ test("collisions are defined for benches and fountain", () => {
   assert.match(html, /addColliderFromObject\(fountain/);
 });
 
+test("water fountain includes animated flow elements", () => {
+  assert.match(html, /const\s+animatedFountains\s*=\s*\[\]/);
+  assert.match(html, /function\s+updateAnimatedFountains\s*\(/);
+  assert.match(html, /new THREE\.CatmullRomCurve3\(/);
+  assert.match(html, /animatedFountains\.push\(\{/);
+  assert.match(html, /rippleOffsets\s*=\s*\[/);
+  assert.match(html, /dropletOffsets\s*=\s*\[/);
+});
+
 test("switches include locator pilot LEDs", () => {
   assert.match(html, /const\s+SWITCH_PILOT\s*=\s*{[\s\S]*lightIntensityOff/);
   assert.match(html, /pilotLens\s*=\s*new THREE\.Mesh\(new THREE\.CylinderGeometry/);
@@ -129,4 +156,26 @@ test("birth of venus video guide is linked to the painting", () => {
   assert.match(html, /title:\s*"The Birth of Venus"/);
   assert.match(html, /"The Birth of Venus":\s*"assets\/audioguides\/birth_of_venus\.mp4"/);
   assert.ok(fs.existsSync(birthOfVenusGuidePath));
+});
+
+test("last supper video guide is linked to the painting", () => {
+  assert.match(html, /title:\s*"The Last Supper"/);
+  assert.match(html, /"The Last Supper":\s*"assets\/audioguides\/last_supper\.mp4"/);
+  assert.ok(fs.existsSync(lastSupperGuidePath));
+});
+
+test("night watch video guide is linked to the painting", () => {
+  assert.match(html, /title:\s*"The Night Watch"/);
+  assert.match(html, /"The Night Watch":\s*"assets\/audioguides\/the_night_watch\.mp4"/);
+  assert.ok(fs.existsSync(nightWatchGuidePath));
+});
+
+test("garden of earthly delights video guide is linked to the painting", () => {
+  assert.match(html, /title:\s*"The Garden of Earthly Delights"/);
+  assert.match(html, /hasAudioGuide:\s*true,[\s\S]*file:\s*"assets\/jardin_de_las_delicias\.jpg"/);
+  assert.match(
+    html,
+    /"The Garden of Earthly Delights":\s*"assets\/audioguides\/jardin_de_las_delicias\.mp4"/
+  );
+  assert.ok(fs.existsSync(gardenOfEarthlyDelightsGuidePath));
 });
