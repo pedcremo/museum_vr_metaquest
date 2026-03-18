@@ -247,6 +247,17 @@
         width: 3.6,
         height: 1.6,
       };
+      const RUG = {
+        width: 3.25,
+        length: 8.6,
+        lift: 0.012,
+      };
+      const SUN_PATCH = {
+        width: 3.8,
+        length: 4.9,
+        lift: 0.014,
+        z: -3.55,
+      };
 
       const LOD = {
         highDistance: 3.0,
@@ -1248,7 +1259,7 @@
       ];
 
       const scene = new THREE.Scene();
-      scene.background = new THREE.Color(0xf2efe9);
+      scene.background = new THREE.Color(0xe6ddd1);
 
       const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.003, 60);
       camera.rotation.order = "YXZ";
@@ -1264,7 +1275,7 @@
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.15;
+      renderer.toneMappingExposure = 1.08;
       renderer.xr.enabled = true;
       renderer.xr.setReferenceSpaceType("local-floor");
       document.body.appendChild(renderer.domElement);
@@ -1806,22 +1817,22 @@
         };
       }
 
-      const hemi = new THREE.HemisphereLight(0xffffff, 0xbcb6ad, 0.6);
-      hemi.position.set(0, 5, 0);
+      const hemi = new THREE.HemisphereLight(0xf8efe4, 0x6b5748, 0.74);
+      hemi.position.set(0, 6.5, 0);
       registerLight(hemi, roomLights);
       scene.add(hemi);
 
-      const keyLight = new THREE.DirectionalLight(0xffffff, 0.35);
-      keyLight.position.set(3, 5, 2);
+      const keyLight = new THREE.DirectionalLight(0xffe5c7, 0.42);
+      keyLight.position.set(3.8, 6.2, 2.8);
       registerLight(keyLight, roomLights);
       scene.add(keyLight);
 
-      const fillLight = new THREE.DirectionalLight(0xffffff, 0.25);
-      fillLight.position.set(-3, 4, -2);
+      const fillLight = new THREE.DirectionalLight(0xdbe7f6, 0.16);
+      fillLight.position.set(-4.6, 4.8, -3.2);
       registerLight(fillLight, roomLights);
       scene.add(fillLight);
 
-      const ambient = new THREE.AmbientLight(0xffffff, 0.18);
+      const ambient = new THREE.AmbientLight(0xf7efe4, 0.14);
       registerLight(ambient, roomLights);
       scene.add(ambient);
 
@@ -1863,34 +1874,60 @@
       ceilingTextures.rough.wrapS = ceilingTextures.rough.wrapT = THREE.RepeatWrapping;
       ceilingTextures.rough.repeat.copy(ceilingTextures.map.repeat);
 
+      const rugTextures = makeRugTextures();
+      rugTextures.map.colorSpace = THREE.SRGBColorSpace;
+      const sunlightPatchTexture = makeSunlightPatchTexture();
+      sunlightPatchTexture.colorSpace = THREE.SRGBColorSpace;
+
       const floorMat = new THREE.MeshStandardMaterial({
+        color: 0xf0dcc4,
         map: woodTileTextures.map,
         bumpMap: woodTileTextures.bump,
-        bumpScale: 0.03,
+        bumpScale: 0.034,
         normalMap: woodTileTextures.normal,
-        normalScale: new THREE.Vector2(0.5, 0.5),
+        normalScale: new THREE.Vector2(0.42, 0.42),
         roughnessMap: woodTileTextures.rough,
-        roughness: 0.8,
-        metalness: 0.01,
+        roughness: 0.72,
+        metalness: 0.02,
       });
 
       const ceilingMat = new THREE.MeshStandardMaterial({
+        color: 0xfcfaf6,
         map: ceilingTextures.map,
         bumpMap: ceilingTextures.bump,
-        bumpScale: 0.04,
+        bumpScale: 0.05,
         roughnessMap: ceilingTextures.rough,
-        roughness: 0.92,
+        roughness: 0.9,
         metalness: 0.0,
         side: THREE.FrontSide,
       });
 
       const wallMat = new THREE.MeshStandardMaterial({
+        color: 0xfbefe2,
         map: wallTextures.map,
         bumpMap: wallTextures.bump,
-        bumpScale: 0.05,
+        bumpScale: 0.06,
         roughnessMap: wallTextures.rough,
-        roughness: 0.88,
+        roughness: 0.84,
         metalness: 0.0,
+      });
+
+      const rugMat = new THREE.MeshStandardMaterial({
+        map: rugTextures.map,
+        bumpMap: rugTextures.bump,
+        bumpScale: 0.012,
+        roughnessMap: rugTextures.rough,
+        roughness: 0.95,
+        metalness: 0.0,
+        side: THREE.DoubleSide,
+      });
+
+      const sunlightPatchMat = new THREE.MeshBasicMaterial({
+        map: sunlightPatchTexture,
+        transparent: true,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        toneMapped: false,
       });
 
       buildRoom();
@@ -1898,6 +1935,7 @@
       loadSistineCeiling();
       addDoorAndWindows();
       addMoldings();
+      addCenterRug();
       addOutlets();
       addSwitches();
       addWaterFountain();
@@ -2790,6 +2828,38 @@
         scene.add(trim);
       }
 
+      function addCenterRug() {
+        const shadow = new THREE.Mesh(
+          new THREE.PlaneGeometry(RUG.width * 1.06, RUG.length * 1.03),
+          new THREE.MeshBasicMaterial({
+            color: 0x2f1a10,
+            transparent: true,
+            opacity: 0.12,
+            depthWrite: false,
+            side: THREE.DoubleSide,
+            toneMapped: false,
+          })
+        );
+        shadow.rotation.x = -Math.PI / 2;
+        shadow.position.set(0, RUG.lift - 0.001, 0);
+        scene.add(shadow);
+
+        const rug = new THREE.Mesh(new THREE.PlaneGeometry(RUG.width, RUG.length), rugMat);
+        rug.rotation.x = -Math.PI / 2;
+        rug.position.set(0, RUG.lift, 0);
+        scene.add(rug);
+      }
+
+      function addWindowSunlightPatch() {
+        const patch = new THREE.Mesh(
+          new THREE.PlaneGeometry(SUN_PATCH.width, SUN_PATCH.length),
+          sunlightPatchMat
+        );
+        patch.rotation.x = -Math.PI / 2;
+        patch.position.set(0, SUN_PATCH.lift, SUN_PATCH.z);
+        scene.add(patch);
+      }
+
       function addOutlets() {
         const inset = 0.04;
         const y = 0.25;
@@ -3503,16 +3573,19 @@
 
       function addDoorAndWindows() {
         const frameMat = new THREE.MeshStandardMaterial({
-          color: 0xe3ddd4,
-          roughness: 0.6,
+          color: 0xe7ddd1,
+          roughness: 0.58,
           metalness: 0.05,
         });
 
         const doorMat = new THREE.MeshStandardMaterial({
           map: woodTextures.map,
-          roughness: 0.7,
-          metalness: 0.05,
-          color: 0x9a6b3a,
+          bumpMap: woodTextures.bump,
+          bumpScale: 0.03,
+          roughnessMap: woodTextures.rough,
+          roughness: 0.64,
+          metalness: 0.04,
+          color: 0x8f5f35,
         });
 
         const doorWidth = DOOR.width;
@@ -3538,7 +3611,7 @@
         doorPivot.add(door);
         scene.add(doorPivot);
 
-        const daylight = new THREE.DirectionalLight(0xd7e6ff, 0.22);
+        const daylight = new THREE.DirectionalLight(0xdce9ff, 0.3);
         daylight.position.set(0, ROOM.height * 0.8, -ROOM.depth / 2 - 3);
         daylight.target.position.set(0, ROOM.height * 0.6, 0);
         registerLight(daylight, roomLights);
@@ -3546,23 +3619,25 @@
         scene.add(daylight.target);
 
         const windowFrameMat = new THREE.MeshStandardMaterial({
-          color: 0xf2eee8,
-          roughness: 0.5,
+          color: 0xf1e8dc,
+          roughness: 0.48,
           metalness: 0.05,
         });
         const windowTrimMat = new THREE.MeshStandardMaterial({
-          color: 0xe3ddd4,
+          color: 0xe1d4c6,
           roughness: 0.55,
           metalness: 0.05,
         });
-        const glassMat = new THREE.MeshStandardMaterial({
-          color: 0xb6d2ff,
-          roughness: 0.08,
+        const glassMat = new THREE.MeshPhysicalMaterial({
+          color: 0xc9ddff,
+          roughness: 0.06,
           metalness: 0.0,
+          transmission: 0.78,
+          thickness: 0.14,
+          clearcoat: 0.75,
+          clearcoatRoughness: 0.08,
           transparent: true,
-          opacity: 0.15,
-          emissive: new THREE.Color(0xbad2ff),
-          emissiveIntensity: 0.08,
+          opacity: 0.24,
         });
 
         const forestTexture = makeForestTexture();
@@ -3586,6 +3661,7 @@
           glassMat,
           forestMat
         );
+        addWindowSunlightPatch();
       }
 
       function addWindow(position, rotationY, width, height, frameMat, trimMat, glassMat, forestMat) {
@@ -3646,7 +3722,7 @@
           new THREE.Vector3(0, 1, 0),
           rotationY
         );
-        const light = new THREE.PointLight(0xcfe0ff, 0.35, 7.5);
+        const light = new THREE.PointLight(0xd9e6ff, 0.52, 8.5);
         light.position.copy(position);
         light.position.addScaledVector(normal, 1.2);
         light.position.y = position.y + 0.1;
@@ -3673,14 +3749,17 @@
         const group = new THREE.Group();
         const seatMat = new THREE.MeshStandardMaterial({
           map: woodTextures.map,
-          roughness: 0.8,
-          metalness: 0.05,
-          color: 0x9c6a3a,
+          bumpMap: woodTextures.bump,
+          bumpScale: 0.02,
+          roughnessMap: woodTextures.rough,
+          roughness: 0.7,
+          metalness: 0.04,
+          color: 0x8f6037,
         });
         const legMat = new THREE.MeshStandardMaterial({
-          color: 0x3b3b3b,
-          roughness: 0.6,
-          metalness: 0.3,
+          color: 0x4b4038,
+          roughness: 0.52,
+          metalness: 0.38,
         });
 
         const seat = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.14, 0.65), seatMat);
@@ -4283,20 +4362,20 @@
         const bumpCtx = bump.getContext("2d");
         const roughCtx = rough.getContext("2d");
 
-        ctx.fillStyle = "#a3713f";
+        ctx.fillStyle = "#8b5d35";
         ctx.fillRect(0, 0, size, size);
         bumpCtx.fillStyle = "#777";
         bumpCtx.fillRect(0, 0, size, size);
         roughCtx.fillStyle = "#d6d1c9";
         roughCtx.fillRect(0, 0, size, size);
 
-        const plankCount = 6;
+        const plankCount = 8;
         const plankWidth = size / plankCount;
 
         for (let i = 0; i < plankCount; i++) {
           const x = i * plankWidth;
-          const tone = 120 + Math.random() * 25;
-          ctx.fillStyle = `rgb(${tone + 30}, ${tone}, ${tone - 30})`;
+          const tone = 96 + Math.random() * 26;
+          ctx.fillStyle = `rgb(${tone + 34}, ${tone + 6}, ${tone - 24})`;
           ctx.fillRect(x, 0, plankWidth, size);
 
           bumpCtx.fillStyle = `rgb(${120 + i * 5}, ${120 + i * 5}, ${120 + i * 5})`;
@@ -4311,14 +4390,21 @@
           ctx.moveTo(x + plankWidth - 2, 0);
           ctx.lineTo(x + plankWidth - 2, size);
           ctx.stroke();
+
+          const sheen = ctx.createLinearGradient(x, 0, x + plankWidth, 0);
+          sheen.addColorStop(0, "rgba(255, 245, 225, 0.02)");
+          sheen.addColorStop(0.5, "rgba(255, 245, 225, 0.08)");
+          sheen.addColorStop(1, "rgba(120, 70, 35, 0.02)");
+          ctx.fillStyle = sheen;
+          ctx.fillRect(x, 0, plankWidth, size);
         }
 
-        for (let i = 0; i < 1800; i++) {
+        for (let i = 0; i < 2400; i++) {
           const x = Math.random() * size;
           const y = Math.random() * size;
-          const w = Math.random() * 40 + 10;
-          const h = Math.random() * 2 + 0.5;
-          ctx.fillStyle = "rgba(70, 45, 20, 0.25)";
+          const w = Math.random() * 70 + 16;
+          const h = Math.random() * 2.4 + 0.5;
+          ctx.fillStyle = "rgba(65, 38, 18, 0.24)";
           ctx.fillRect(x, y, w, h);
 
           const bumpShade = 110 + Math.random() * 40;
@@ -4338,8 +4424,8 @@
 
       function makeWoodTileTextures() {
         const size = 1024;
-        const tile = 160;
-        const grout = 6;
+        const tile = 128;
+        const grout = 5;
 
         const color = document.createElement("canvas");
         const bump = document.createElement("canvas");
@@ -4355,7 +4441,7 @@
         const roughCtx = rough.getContext("2d");
         const normalCtx = normal.getContext("2d");
 
-        ctx.fillStyle = "#b58a58";
+        ctx.fillStyle = "#b88757";
         ctx.fillRect(0, 0, size, size);
         bumpCtx.fillStyle = "#8a8a8a";
         bumpCtx.fillRect(0, 0, size, size);
@@ -4367,10 +4453,10 @@
         for (let y = 0; y < size; y += tile) {
           for (let x = 0; x < size; x += tile) {
             const vertical = ((x / tile + y / tile) % 2) === 0;
-            const baseShift = (Math.random() - 0.5) * 22;
-            const r = 164 + baseShift;
-            const g = 118 + baseShift * 0.6;
-            const b = 78 + baseShift * 0.4;
+            const baseShift = (Math.random() - 0.5) * 28;
+            const r = 166 + baseShift;
+            const g = 120 + baseShift * 0.55;
+            const b = 80 + baseShift * 0.36;
 
             ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
             ctx.fillRect(x + grout, y + grout, tile - grout * 2, tile - grout * 2);
@@ -4383,7 +4469,24 @@
             roughCtx.fillStyle = `rgb(${roughBase}, ${roughBase}, ${roughBase})`;
             roughCtx.fillRect(x + grout, y + grout, tile - grout * 2, tile - grout * 2);
 
-            const grainCount = 10;
+            const sheen = vertical
+              ? ctx.createLinearGradient(x + grout, y, x + tile - grout, y)
+              : ctx.createLinearGradient(x, y + grout, x, y + tile - grout);
+            sheen.addColorStop(0, "rgba(255, 235, 205, 0.02)");
+            sheen.addColorStop(0.5, "rgba(255, 235, 205, 0.1)");
+            sheen.addColorStop(1, "rgba(120, 80, 45, 0.02)");
+            ctx.fillStyle = sheen;
+            ctx.fillRect(x + grout, y + grout, tile - grout * 2, tile - grout * 2);
+
+            ctx.strokeStyle = "rgba(88, 58, 34, 0.18)";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x + grout + 1, y + grout + 1, tile - grout * 2 - 2, tile - grout * 2 - 2);
+
+            bumpCtx.strokeStyle = "rgba(105, 105, 105, 0.35)";
+            bumpCtx.lineWidth = 2;
+            bumpCtx.strokeRect(x + grout + 1, y + grout + 1, tile - grout * 2 - 2, tile - grout * 2 - 2);
+
+            const grainCount = 14;
             for (let i = 0; i < grainCount; i++) {
               const offset = (i / grainCount) * (tile - grout * 2);
               const lineWidth = 2 + Math.random() * 2;
@@ -4455,12 +4558,28 @@
               normalCtx.arc(knotX, knotY, 6 + Math.random() * 4, 0, Math.PI * 2);
               normalCtx.fill();
             }
+
+            const wearCount = 3;
+            for (let i = 0; i < wearCount; i++) {
+              const wearX = x + grout + Math.random() * (tile - grout * 2);
+              const wearY = y + grout + Math.random() * (tile - grout * 2);
+              const wearR = 6 + Math.random() * 16;
+              ctx.fillStyle = "rgba(255, 236, 206, 0.05)";
+              ctx.beginPath();
+              ctx.arc(wearX, wearY, wearR, 0, Math.PI * 2);
+              ctx.fill();
+
+              roughCtx.fillStyle = "rgba(160, 160, 160, 0.12)";
+              roughCtx.beginPath();
+              roughCtx.arc(wearX, wearY, wearR, 0, Math.PI * 2);
+              roughCtx.fill();
+            }
           }
         }
 
-        ctx.fillStyle = "#8c6a43";
+        ctx.fillStyle = "#8b6943";
         bumpCtx.fillStyle = "#707070";
-        roughCtx.fillStyle = "#e0d8cf";
+        roughCtx.fillStyle = "#dfd6cc";
         normalCtx.fillStyle = "#6060ff"; // slightly recessed grout
 
         for (let i = 0; i <= size; i += tile) {
@@ -4477,7 +4596,7 @@
           normalCtx.fillRect(0, i, size, grout);
         }
 
-        for (let i = 0; i < 5000; i++) {
+        for (let i = 0; i < 6500; i++) {
           const x = Math.random() * size;
           const y = Math.random() * size;
           const w = Math.random() * 2 + 0.5;
@@ -4502,6 +4621,162 @@
         };
       }
 
+      function makeRugTextures() {
+        const width = 768;
+        const height = 2048;
+        const color = document.createElement("canvas");
+        const bump = document.createElement("canvas");
+        const rough = document.createElement("canvas");
+        color.width = bump.width = rough.width = width;
+        color.height = bump.height = rough.height = height;
+
+        const ctx = color.getContext("2d");
+        const bumpCtx = bump.getContext("2d");
+        const roughCtx = rough.getContext("2d");
+
+        ctx.fillStyle = "#522920";
+        ctx.fillRect(0, 0, width, height);
+        bumpCtx.fillStyle = "#808080";
+        bumpCtx.fillRect(0, 0, width, height);
+        roughCtx.fillStyle = "#ece6de";
+        roughCtx.fillRect(0, 0, width, height);
+
+        fillRoundedRect(ctx, 18, 18, width - 36, height - 36, 34, "#6b342b");
+        fillRoundedRect(ctx, 44, 44, width - 88, height - 88, 28, "#c3a065");
+        fillRoundedRect(ctx, 78, 78, width - 156, height - 156, 20, "#734036");
+        fillRoundedRect(ctx, 110, 110, width - 220, height - 220, 18, "#8c4d3f");
+
+        bumpCtx.fillStyle = "#8b8b8b";
+        bumpCtx.fillRect(40, 40, width - 80, height - 80);
+        bumpCtx.fillStyle = "#9a9a9a";
+        bumpCtx.fillRect(78, 78, width - 156, height - 156);
+
+        roughCtx.fillStyle = "#ddd4ca";
+        roughCtx.fillRect(44, 44, width - 88, height - 88);
+        roughCtx.fillStyle = "#e7e1d9";
+        roughCtx.fillRect(96, 96, width - 192, height - 192);
+
+        const fieldGradient = ctx.createLinearGradient(0, 110, 0, height - 110);
+        fieldGradient.addColorStop(0, "rgba(255, 228, 184, 0.08)");
+        fieldGradient.addColorStop(0.5, "rgba(93, 37, 29, 0)");
+        fieldGradient.addColorStop(1, "rgba(255, 228, 184, 0.06)");
+        ctx.fillStyle = fieldGradient;
+        ctx.fillRect(110, 110, width - 220, height - 220);
+
+        function drawDiamond(targetCtx, x, y, rx, ry, fill, stroke, lineWidth = 6) {
+          targetCtx.beginPath();
+          targetCtx.moveTo(x, y - ry);
+          targetCtx.lineTo(x + rx, y);
+          targetCtx.lineTo(x, y + ry);
+          targetCtx.lineTo(x - rx, y);
+          targetCtx.closePath();
+          targetCtx.fillStyle = fill;
+          targetCtx.fill();
+          targetCtx.strokeStyle = stroke;
+          targetCtx.lineWidth = lineWidth;
+          targetCtx.stroke();
+        }
+
+        drawDiamond(ctx, width / 2, height / 2, 164, 280, "#c49c5e", "#e7d3a0", 10);
+        drawDiamond(ctx, width / 2, height / 2, 124, 208, "#5f2e27", "#d9b777", 8);
+        drawDiamond(ctx, width / 2, height / 2, 72, 128, "#d7bb7c", "#f3e3b8", 6);
+
+        drawDiamond(bumpCtx, width / 2, height / 2, 164, 280, "#9f9f9f", "#b8b8b8", 8);
+        drawDiamond(bumpCtx, width / 2, height / 2, 124, 208, "#8a8a8a", "#b0b0b0", 6);
+        drawDiamond(bumpCtx, width / 2, height / 2, 72, 128, "#aaaaaa", "#c0c0c0", 4);
+
+        drawDiamond(roughCtx, width / 2, height / 2, 164, 280, "#d8d0c5", "#d8d0c5", 8);
+        drawDiamond(roughCtx, width / 2, height / 2, 124, 208, "#ece6df", "#ece6df", 6);
+        drawDiamond(roughCtx, width / 2, height / 2, 72, 128, "#d0c7bc", "#d0c7bc", 4);
+
+        for (let i = 0; i < 7; i++) {
+          const y = 248 + i * 258;
+          drawDiamond(ctx, width / 2, y, 44, 76, i % 2 === 0 ? "#d4b06c" : "#4f241d", "#ead6a8", 5);
+          drawDiamond(bumpCtx, width / 2, y, 44, 76, "#969696", "#b3b3b3", 4);
+          drawDiamond(roughCtx, width / 2, y, 44, 76, i % 2 === 0 ? "#d8d0c5" : "#ece7df", "#ded7cd", 4);
+        }
+
+        for (let i = 0; i < 10; i++) {
+          const y = 180 + i * 186;
+          const leftX = 152;
+          const rightX = width - 152;
+          ctx.fillStyle = i % 2 === 0 ? "#e8d5a4" : "#c59b5a";
+          ctx.beginPath();
+          ctx.arc(leftX, y, 24, 0, Math.PI * 2);
+          ctx.arc(rightX, y, 24, 0, Math.PI * 2);
+          ctx.fill();
+
+          bumpCtx.fillStyle = "#a5a5a5";
+          bumpCtx.beginPath();
+          bumpCtx.arc(leftX, y, 24, 0, Math.PI * 2);
+          bumpCtx.arc(rightX, y, 24, 0, Math.PI * 2);
+          bumpCtx.fill();
+        }
+
+        for (let i = 0; i < 9000; i++) {
+          const x = Math.random() * width;
+          const y = Math.random() * height;
+          ctx.fillStyle = Math.random() > 0.5 ? "rgba(255, 240, 220, 0.03)" : "rgba(50, 18, 14, 0.04)";
+          ctx.fillRect(x, y, 1, Math.random() * 3 + 1);
+
+          const roughShade = 210 + Math.random() * 18;
+          roughCtx.fillStyle = `rgb(${roughShade}, ${roughShade}, ${roughShade})`;
+          roughCtx.fillRect(x, y, 1, Math.random() * 3 + 1);
+        }
+
+        return {
+          map: new THREE.CanvasTexture(color),
+          bump: new THREE.CanvasTexture(bump),
+          rough: new THREE.CanvasTexture(rough),
+        };
+      }
+
+      function makeSunlightPatchTexture() {
+        const size = 1024;
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = size;
+        const ctx = canvas.getContext("2d");
+
+        ctx.clearRect(0, 0, size, size);
+        ctx.save();
+        ctx.translate(size / 2, size * 0.42);
+        ctx.rotate(-0.12);
+
+        const mainGlow = ctx.createRadialGradient(0, 0, 60, 0, 0, 280);
+        mainGlow.addColorStop(0, "rgba(255, 237, 191, 0.78)");
+        mainGlow.addColorStop(0.45, "rgba(255, 224, 162, 0.46)");
+        mainGlow.addColorStop(1, "rgba(255, 224, 162, 0)");
+        ctx.fillStyle = mainGlow;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 250, 390, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        const sideGlow = ctx.createRadialGradient(0, 140, 20, 0, 140, 200);
+        sideGlow.addColorStop(0, "rgba(255, 246, 226, 0.22)");
+        sideGlow.addColorStop(1, "rgba(255, 246, 226, 0)");
+        ctx.fillStyle = sideGlow;
+        ctx.beginPath();
+        ctx.ellipse(0, 140, 190, 220, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        const mullionShadow = ctx.createLinearGradient(-180, -260, -180, 260);
+        mullionShadow.addColorStop(0, "rgba(120, 90, 54, 0)");
+        mullionShadow.addColorStop(0.5, "rgba(120, 90, 54, 0.14)");
+        mullionShadow.addColorStop(1, "rgba(120, 90, 54, 0)");
+        ctx.fillStyle = mullionShadow;
+        ctx.fillRect(-22, -260, 44, 520);
+
+        const crossShadow = ctx.createLinearGradient(-260, -24, 260, -24);
+        crossShadow.addColorStop(0, "rgba(120, 90, 54, 0)");
+        crossShadow.addColorStop(0.5, "rgba(120, 90, 54, 0.1)");
+        crossShadow.addColorStop(1, "rgba(120, 90, 54, 0)");
+        ctx.fillStyle = crossShadow;
+        ctx.fillRect(-260, -42, 520, 36);
+        ctx.restore();
+
+        return new THREE.CanvasTexture(canvas);
+      }
+
       function makeForestTexture() {
         const size = 1024;
         const canvas = document.createElement("canvas");
@@ -4509,17 +4784,23 @@
         const ctx = canvas.getContext("2d");
 
         const sky = ctx.createLinearGradient(0, 0, 0, size * 0.65);
-        sky.addColorStop(0, "#8eb8ff");
-        sky.addColorStop(0.55, "#cfe6ff");
-        sky.addColorStop(1, "#eef6ff");
+        sky.addColorStop(0, "#9eb7df");
+        sky.addColorStop(0.45, "#e8d3a8");
+        sky.addColorStop(1, "#f7f0df");
         ctx.fillStyle = sky;
         ctx.fillRect(0, 0, size, size);
 
         const horizon = size * 0.55;
-        ctx.fillStyle = "#a6cfa0";
+        ctx.fillStyle = "#9fbe8a";
         ctx.fillRect(0, horizon, size, size - horizon);
 
-        ctx.fillStyle = "#7aac74";
+        const haze = ctx.createLinearGradient(0, horizon - 30, 0, horizon + 140);
+        haze.addColorStop(0, "rgba(255, 228, 182, 0.34)");
+        haze.addColorStop(1, "rgba(255, 228, 182, 0)");
+        ctx.fillStyle = haze;
+        ctx.fillRect(0, horizon - 30, size, 170);
+
+        ctx.fillStyle = "#739467";
         ctx.beginPath();
         ctx.moveTo(0, horizon + 40);
         ctx.lineTo(size * 0.3, horizon - 10);
@@ -4535,7 +4816,7 @@
           const y = horizon + 10 + Math.random() * 60;
           const h = 140 + Math.random() * 120;
           const w = 40 + Math.random() * 30;
-          ctx.fillStyle = "#5f7b4b";
+          ctx.fillStyle = "#556f47";
           ctx.beginPath();
           ctx.moveTo(x, y);
           ctx.lineTo(x - w * 0.4, y + h);
@@ -4548,7 +4829,7 @@
           const cx = Math.random() * size;
           const cy = horizon + 30 + Math.random() * 220;
           const radius = 26 + Math.random() * 30;
-          ctx.fillStyle = "rgba(70, 110, 55, 0.8)";
+          ctx.fillStyle = "rgba(76, 103, 54, 0.82)";
           ctx.beginPath();
           ctx.arc(cx, cy, radius, 0, Math.PI * 2);
           ctx.fill();
@@ -4559,7 +4840,7 @@
           const trunkY = horizon + 80 + Math.random() * 140;
           ctx.fillStyle = "#5a4632";
           ctx.fillRect(trunkX, trunkY, 10, 60);
-          ctx.fillStyle = "#4e8b55";
+          ctx.fillStyle = "#587f4e";
           ctx.beginPath();
           ctx.arc(trunkX + 5, trunkY - 10, 36, 0, Math.PI * 2);
           ctx.fill();
@@ -4569,7 +4850,7 @@
       }
 
       function makeWallTextures() {
-        const size = 512;
+        const size = 1024;
         const color = document.createElement("canvas");
         const bump = document.createElement("canvas");
         const rough = document.createElement("canvas");
@@ -4581,30 +4862,42 @@
         const bumpCtx = bump.getContext("2d");
         const roughCtx = rough.getContext("2d");
 
-        ctx.fillStyle = "#f7f4ef";
+        ctx.fillStyle = "#f2e6d8";
         ctx.fillRect(0, 0, size, size);
         bumpCtx.fillStyle = "#888";
         bumpCtx.fillRect(0, 0, size, size);
-        roughCtx.fillStyle = "#e2ddd6";
+        roughCtx.fillStyle = "#ded6cc";
         roughCtx.fillRect(0, 0, size, size);
 
-        for (let i = 0; i < 2400; i++) {
-          const shade = 235 + Math.random() * 15;
-          ctx.fillStyle = `rgb(${shade}, ${shade - 3}, ${shade - 8})`;
-          ctx.fillRect(
-            Math.random() * size,
-            Math.random() * size,
-            Math.random() * 2 + 0.5,
-            Math.random() * 2 + 0.5
-          );
-        }
-
-        for (let i = 0; i < 1800; i++) {
+        for (let i = 0; i < 240; i++) {
           const x = Math.random() * size;
           const y = Math.random() * size;
-          const w = Math.random() * 16 + 6;
-          const h = Math.random() * 1.5 + 0.3;
-          ctx.fillStyle = "rgba(210, 200, 190, 0.25)";
+          const w = 70 + Math.random() * 220;
+          const h = 34 + Math.random() * 120;
+          ctx.fillStyle = Math.random() > 0.5 ? "rgba(255, 247, 236, 0.08)" : "rgba(208, 182, 154, 0.06)";
+          ctx.beginPath();
+          ctx.ellipse(x, y, w, h, Math.random() * Math.PI, 0, Math.PI * 2);
+          ctx.fill();
+
+          const bumpShade = 125 + Math.random() * 28;
+          bumpCtx.fillStyle = `rgb(${bumpShade}, ${bumpShade}, ${bumpShade})`;
+          bumpCtx.beginPath();
+          bumpCtx.ellipse(x, y, w * 0.65, h * 0.65, Math.random() * Math.PI, 0, Math.PI * 2);
+          bumpCtx.fill();
+
+          const roughShade = 200 + Math.random() * 24;
+          roughCtx.fillStyle = `rgb(${roughShade}, ${roughShade}, ${roughShade})`;
+          roughCtx.beginPath();
+          roughCtx.ellipse(x, y, w * 0.7, h * 0.7, Math.random() * Math.PI, 0, Math.PI * 2);
+          roughCtx.fill();
+        }
+
+        for (let i = 0; i < 3200; i++) {
+          const x = Math.random() * size;
+          const y = Math.random() * size;
+          const w = Math.random() * 32 + 10;
+          const h = Math.random() * 2.2 + 0.4;
+          ctx.fillStyle = "rgba(214, 198, 182, 0.18)";
           ctx.fillRect(x, y, w, h);
 
           const bumpShade = 120 + Math.random() * 40;
@@ -4616,6 +4909,27 @@
           roughCtx.fillRect(x, y, w, h);
         }
 
+        for (let i = 0; i < 5200; i++) {
+          const x = Math.random() * size;
+          const y = Math.random() * size;
+          const speck = Math.random() * 2 + 0.6;
+          const tone = 228 + Math.random() * 18;
+          ctx.fillStyle = `rgba(${tone}, ${tone - 5}, ${tone - 12}, 0.22)`;
+          ctx.fillRect(x, y, speck, speck);
+        }
+
+        for (let i = 0; i < 90; i++) {
+          const startX = Math.random() * size;
+          const startY = Math.random() * size;
+          const length = 30 + Math.random() * 120;
+          ctx.strokeStyle = "rgba(160, 138, 118, 0.14)";
+          ctx.lineWidth = Math.random() * 1.2 + 0.3;
+          ctx.beginPath();
+          ctx.moveTo(startX, startY);
+          ctx.lineTo(startX + length, startY + Math.random() * 18 - 9);
+          ctx.stroke();
+        }
+
         return {
           map: new THREE.CanvasTexture(color),
           bump: new THREE.CanvasTexture(bump),
@@ -4624,7 +4938,7 @@
       }
 
       function makeCeilingTextures() {
-        const size = 512;
+        const size = 1024;
         const color = document.createElement("canvas");
         const bump = document.createElement("canvas");
         const rough = document.createElement("canvas");
@@ -4636,38 +4950,50 @@
         const bumpCtx = bump.getContext("2d");
         const roughCtx = rough.getContext("2d");
 
-        ctx.fillStyle = "#f3efe9";
+        ctx.fillStyle = "#f7f2eb";
         ctx.fillRect(0, 0, size, size);
         bumpCtx.fillStyle = "#888";
         bumpCtx.fillRect(0, 0, size, size);
-        roughCtx.fillStyle = "#e0dbd3";
+        roughCtx.fillStyle = "#e2ddd6";
         roughCtx.fillRect(0, 0, size, size);
 
-        for (let i = 0; i < 2000; i++) {
-          const shade = 232 + Math.random() * 12;
-          ctx.fillStyle = `rgb(${shade}, ${shade - 4}, ${shade - 9})`;
-          ctx.fillRect(
-            Math.random() * size,
-            Math.random() * size,
-            Math.random() * 2 + 0.5,
-            Math.random() * 2 + 0.5
-          );
+        for (let i = 0; i < 190; i++) {
+          const x = Math.random() * size;
+          const y = Math.random() * size;
+          const radius = 40 + Math.random() * 120;
+          ctx.fillStyle = Math.random() > 0.5 ? "rgba(255, 248, 240, 0.1)" : "rgba(220, 209, 196, 0.08)";
+          ctx.beginPath();
+          ctx.arc(x, y, radius, 0, Math.PI * 2);
+          ctx.fill();
+
+          const bumpShade = 125 + Math.random() * 22;
+          bumpCtx.fillStyle = `rgba(${bumpShade}, ${bumpShade}, ${bumpShade}, 0.2)`;
+          bumpCtx.beginPath();
+          bumpCtx.arc(x, y, radius * 0.72, 0, Math.PI * 2);
+          bumpCtx.fill();
         }
 
-        ctx.globalAlpha = 0.2;
-        ctx.fillStyle = "#e7e0d8";
-        for (let i = 0; i < 30; i++) {
-          ctx.beginPath();
-          ctx.arc(
-            Math.random() * size,
-            Math.random() * size,
-            Math.random() * 24 + 14,
-            0,
-            Math.PI * 2
-          );
-          ctx.fill();
+        for (let i = 0; i < 2600; i++) {
+          const x = Math.random() * size;
+          const y = Math.random() * size;
+          const w = Math.random() * 2.2 + 0.5;
+          const h = Math.random() * 2.2 + 0.5;
+          const shade = 236 + Math.random() * 12;
+          ctx.fillStyle = `rgba(${shade}, ${shade - 5}, ${shade - 8}, 0.2)`;
+          ctx.fillRect(x, y, w, h);
         }
-        ctx.globalAlpha = 1;
+
+        for (let i = 0; i < 70; i++) {
+          const startX = Math.random() * size;
+          const startY = Math.random() * size;
+          const length = 20 + Math.random() * 100;
+          ctx.strokeStyle = "rgba(176, 162, 145, 0.12)";
+          ctx.lineWidth = Math.random() * 1.1 + 0.25;
+          ctx.beginPath();
+          ctx.moveTo(startX, startY);
+          ctx.lineTo(startX + length, startY + Math.random() * 12 - 6);
+          ctx.stroke();
+        }
 
         return {
           map: new THREE.CanvasTexture(color),
