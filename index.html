@@ -1112,6 +1112,9 @@
       const controllers = [];
       const artworkViewingSpots = [];
       const animatedFountains = [];
+      const timeAwareLights = [];
+      const timeAwareGlassMaterials = [];
+      const dynamicExteriorSurfaces = [];
       const desktopKeys = { w: false, a: false, s: false, d: false, up: false, down: false, shift: false };
       let ceilingMesh = null;
       let ceilingFrescoMesh = null;
@@ -1122,6 +1125,12 @@
       let teleportController = null;
       let pointerLocked = false;
       let desktopFlightEnabled = true;
+      let lastTimeOfDayKey = "";
+      let currentTimeOfDayState = null;
+      let lastExteriorAnimationTick = -Infinity;
+      let lastEnvironmentAnimationTick = -Infinity;
+      let skyEnvironmentSource = null;
+      let skyEnvironmentRenderTarget = null;
 
       const ARTWORKS = [
         {
@@ -1265,6 +1274,8 @@
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 1.08;
+      const pmremGenerator = new THREE.PMREMGenerator(renderer);
+      pmremGenerator.compileEquirectangularShader();
       renderer.xr.enabled = true;
       renderer.xr.setReferenceSpaceType("local-floor");
       document.body.appendChild(renderer.domElement);
@@ -1809,20 +1820,46 @@
       const hemi = new THREE.HemisphereLight(0xf8efe4, 0x6b5748, 0.74);
       hemi.position.set(0, 6.5, 0);
       registerLight(hemi, roomLights);
+      registerTimeAwareLight(hemi, {
+        dayIntensity: 0.74,
+        nightIntensity: 0.12,
+        dayColor: 0xf8efe4,
+        nightColor: 0x5a7099,
+        dayGroundColor: 0x6b5748,
+        nightGroundColor: 0x18141a,
+      });
       scene.add(hemi);
 
       const keyLight = new THREE.DirectionalLight(0xffe5c7, 0.42);
       keyLight.position.set(3.8, 6.2, 2.8);
       registerLight(keyLight, roomLights);
+      registerTimeAwareLight(keyLight, {
+        dayIntensity: 0.42,
+        nightIntensity: 0.06,
+        dayColor: 0xffe5c7,
+        nightColor: 0x6d7d99,
+      });
       scene.add(keyLight);
 
       const fillLight = new THREE.DirectionalLight(0xdbe7f6, 0.16);
       fillLight.position.set(-4.6, 4.8, -3.2);
       registerLight(fillLight, roomLights);
+      registerTimeAwareLight(fillLight, {
+        dayIntensity: 0.16,
+        nightIntensity: 0.03,
+        dayColor: 0xdbe7f6,
+        nightColor: 0x41597d,
+      });
       scene.add(fillLight);
 
       const ambient = new THREE.AmbientLight(0xf7efe4, 0.14);
       registerLight(ambient, roomLights);
+      registerTimeAwareLight(ambient, {
+        dayIntensity: 0.14,
+        nightIntensity: 0.025,
+        dayColor: 0xf7efe4,
+        nightColor: 0x6c7383,
+      });
       scene.add(ambient);
 
       const woodTextures = makeWoodTextures();
@@ -1931,6 +1968,10 @@
       addBenches();
       addCeilingLamps();
       setupControllers();
+      skyEnvironmentSource = createSkyEnvironmentSource();
+      updateTimeOfDay(true);
+      updateExteriorAnimation(0, true);
+      updateSceneEnvironment(0, true);
 
       const paintings = [];
       const placements = buildPlacements();
@@ -2000,6 +2041,9 @@
       renderer.setAnimationLoop(() => {
         const delta = clock.getDelta();
         const elapsed = clock.elapsedTime;
+        updateTimeOfDay();
+        updateExteriorAnimation(elapsed);
+        updateSceneEnvironment(elapsed);
         const useOrbit = !renderer.xr.isPresenting && !pointerLocked;
         controls.enabled = useOrbit;
         if (useOrbit) {
@@ -2065,6 +2109,11 @@
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
+        if (skyEnvironmentRenderTarget) {
+          skyEnvironmentRenderTarget.dispose();
+          skyEnvironmentRenderTarget = null;
+        }
+        updateSceneEnvironment(clock.elapsedTime, true);
       });
 
       window.addEventListener("pointerdown", (event) => {
@@ -2194,36 +2243,120 @@
         return geometry;
       }
 
-      function buildVaultEndPanels(radius, centerY) {
-        const halfSpan = ROOM.width / 2;
+      function getVaultArchY(radius, centerY, x) {
+        return centerY + Math.sqrt(Math.max(0, radius * radius - x * x));
+      }
+
+      function buildVaultArchShape(radius, centerY, xInset = 0, bottomInset = 0, topInset = 0) {
+        const halfSpan = ROOM.width / 2 - xInset;
+        const baseY = WALL.height + bottomInset;
         const segments = 64;
         const shape = new THREE.Shape();
-        shape.moveTo(-halfSpan, WALL.height);
+        shape.moveTo(-halfSpan, baseY);
         for (let i = 0; i <= segments; i++) {
           const x = -halfSpan + (i / segments) * (halfSpan * 2);
-          const y = centerY + Math.sqrt(Math.max(0, radius * radius - x * x));
+          const y = getVaultArchY(radius, centerY, x) - topInset;
           shape.lineTo(x, y);
         }
-        shape.lineTo(halfSpan, WALL.height);
+        shape.lineTo(halfSpan, baseY);
         shape.closePath();
+        return shape;
+      }
 
-        const geometry = new THREE.ShapeGeometry(shape, 48);
-        geometry.computeVertexNormals();
+      function buildVaultClerestory(radius, centerY, zPosition, isFront) {
+        const group = new THREE.Group();
+        group.position.z = zPosition;
+        if (isFront) {
+          group.rotation.y = Math.PI;
+        }
 
-        vaultSideMaterial = new THREE.MeshStandardMaterial({
-          color: 0xffffff,
-          roughness: 0.82,
-          metalness: 0.0,
+        const outerShape = buildVaultArchShape(radius, centerY, 0, 0, 0);
+        const innerShape = buildVaultArchShape(radius, centerY, 0.28, 0.2, 0.18);
+
+        const frameShape = outerShape.clone();
+        frameShape.holes.push(innerShape);
+        const frameMat = new THREE.MeshStandardMaterial({
+          color: 0xe8dece,
+          roughness: 0.56,
+          metalness: 0.05,
+        });
+        const frame = new THREE.Mesh(new THREE.ShapeGeometry(frameShape, 64), frameMat);
+        frame.position.z = 0.05;
+
+        const exteriorSurface = createDynamicExteriorSurface({ mode: "clerestory" });
+        const exteriorMat = new THREE.MeshBasicMaterial({
+          map: exteriorSurface.texture,
           side: THREE.DoubleSide,
         });
+        const exterior = new THREE.Mesh(new THREE.ShapeGeometry(innerShape, 64), exteriorMat);
+        exterior.position.z = -0.2;
+        exterior.renderOrder = 1;
 
-        const backPanel = new THREE.Mesh(geometry, vaultSideMaterial);
-        backPanel.position.z = -ROOM.depth / 2 + 0.02;
+        const glass = new THREE.Mesh(
+          new THREE.ShapeGeometry(innerShape, 64),
+          createTimeAwareGlassMaterial({
+            dayColor: 0xffffff,
+            nightColor: 0xf2f7ff,
+            dayTransmission: 0.998,
+            nightTransmission: 0.986,
+            dayRoughness: 0.005,
+            nightRoughness: 0.018,
+            dayEnvMapIntensity: 1.55,
+            nightEnvMapIntensity: 0.55,
+            thickness: 0.022,
+            ior: 1.5,
+            clearcoat: 0.16,
+            clearcoatRoughness: 0.015,
+          })
+        );
+        glass.position.z = 0.014;
+        glass.renderOrder = 2;
+        glass.material.depthWrite = false;
 
-        const frontPanel = new THREE.Mesh(geometry.clone(), vaultSideMaterial);
-        frontPanel.position.z = ROOM.depth / 2 - 0.02;
-        frontPanel.rotation.y = Math.PI;
+        group.add(exterior);
+        group.add(glass);
+        group.add(frame);
 
+        const mullionMat = new THREE.MeshStandardMaterial({
+          color: 0xd9cfbf,
+          roughness: 0.5,
+          metalness: 0.06,
+        });
+        const innerHalfSpan = ROOM.width / 2 - 0.28;
+        const innerBaseY = WALL.height + 0.2;
+        [-0.52, -0.18, 0.18, 0.52].forEach((ratio) => {
+          const x = innerHalfSpan * ratio;
+          const topY = getVaultArchY(radius, centerY, x) - 0.2;
+          const height = Math.max(0.2, topY - innerBaseY);
+          const mullion = new THREE.Mesh(new THREE.BoxGeometry(0.11, height, 0.08), mullionMat);
+          mullion.position.set(x, innerBaseY + height / 2, 0.045);
+          group.add(mullion);
+        });
+
+        const transom = new THREE.Mesh(
+          new THREE.BoxGeometry(innerHalfSpan * 1.88, 0.1, 0.08),
+          mullionMat
+        );
+        transom.position.set(0, innerBaseY + (ROOM.height - innerBaseY) * 0.34, 0.045);
+        group.add(transom);
+
+        const clerestoryLight = new THREE.PointLight(0xe7f1ff, 0.48, 18, 2);
+        clerestoryLight.position.set(0, WALL.height + 1.15, 1.5);
+        registerLight(clerestoryLight, roomLights);
+        registerTimeAwareLight(clerestoryLight, {
+          dayIntensity: 0.48,
+          nightIntensity: 0.02,
+          dayColor: 0xe7f1ff,
+          nightColor: 0x53698e,
+        });
+        group.add(clerestoryLight);
+
+        return group;
+      }
+
+      function buildVaultEndPanels(radius, centerY) {
+        const backPanel = buildVaultClerestory(radius, centerY, -ROOM.depth / 2 + 0.03, false);
+        const frontPanel = buildVaultClerestory(radius, centerY, ROOM.depth / 2 - 0.03, true);
         return [backPanel, frontPanel];
       }
 
@@ -2244,10 +2377,6 @@
 
             ceilingFrescoMaterial.map = texture;
             ceilingFrescoMaterial.needsUpdate = true;
-            if (vaultSideMaterial) {
-              vaultSideMaterial.map = texture;
-              vaultSideMaterial.needsUpdate = true;
-            }
           },
           undefined,
           (err) => {
@@ -2389,10 +2518,407 @@
         group.push(light);
       }
 
+      function registerTimeAwareLight(light, options = {}) {
+        light.userData.dayIntensity = options.dayIntensity ?? light.userData.baseIntensity ?? light.intensity;
+        light.userData.nightIntensity = options.nightIntensity ?? light.userData.baseIntensity ?? light.intensity;
+        light.userData.dayColor = new THREE.Color(options.dayColor ?? light.color.getHex());
+        light.userData.nightColor = new THREE.Color(options.nightColor ?? light.color.getHex());
+        if (light.isHemisphereLight) {
+          light.userData.dayGroundColor = new THREE.Color(
+            options.dayGroundColor ?? light.groundColor.getHex()
+          );
+          light.userData.nightGroundColor = new THREE.Color(
+            options.nightGroundColor ?? light.groundColor.getHex()
+          );
+        }
+        timeAwareLights.push(light);
+      }
+
       function setLightGroup(group, on) {
         group.forEach((light) => {
           light.intensity = on ? light.userData.baseIntensity : 0;
         });
+      }
+
+      function clamp01(value) {
+        return Math.min(1, Math.max(0, value));
+      }
+
+      function smoothstep(edge0, edge1, x) {
+        if (edge0 === edge1) return x < edge0 ? 0 : 1;
+        const t = clamp01((x - edge0) / (edge1 - edge0));
+        return t * t * (3 - 2 * t);
+      }
+
+      function getTimeOfDayState(date = new Date()) {
+        const hour = date.getHours() + date.getMinutes() / 60 + date.getSeconds() / 3600;
+        const sunrise = smoothstep(6.1, 8.0, hour);
+        const sunset = 1 - smoothstep(18.5, 20.4, hour);
+        const daylight = clamp01(sunrise * sunset);
+        return {
+          hour,
+          daylight,
+          night: 1 - daylight,
+          isDay: daylight >= 0.45,
+        };
+      }
+
+      function createDynamicExteriorSurface({ size = 1024, mode = "forest" } = {}) {
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.colorSpace = THREE.SRGBColorSpace;
+        const surface = { canvas, ctx, texture, mode };
+        dynamicExteriorSurfaces.push(surface);
+        return surface;
+      }
+
+      function createTimeAwareGlassMaterial({
+        dayColor = 0xffffff,
+        nightColor = 0xf1f6ff,
+        dayTransmission = 0.998,
+        nightTransmission = 0.985,
+        dayRoughness = 0.006,
+        nightRoughness = 0.022,
+        dayEnvMapIntensity = 1.35,
+        nightEnvMapIntensity = 0.45,
+        thickness = 0.026,
+        ior = 1.5,
+        clearcoat = 0.2,
+        clearcoatRoughness = 0.015,
+      } = {}) {
+        const material = new THREE.MeshPhysicalMaterial({
+          color: dayColor,
+          roughness: dayRoughness,
+          metalness: 0.0,
+          transmission: dayTransmission,
+          thickness,
+          ior,
+          clearcoat,
+          clearcoatRoughness,
+          specularIntensity: 1,
+          envMapIntensity: dayEnvMapIntensity,
+          attenuationColor: new THREE.Color(0xf7fbff),
+          attenuationDistance: 7.5,
+          transparent: true,
+          opacity: 1,
+          side: THREE.DoubleSide,
+        });
+        timeAwareGlassMaterials.push({
+          material,
+          dayTransmission,
+          nightTransmission,
+          dayRoughness,
+          nightRoughness,
+          dayEnvMapIntensity,
+          nightEnvMapIntensity,
+          dayColor: new THREE.Color(dayColor),
+          nightColor: new THREE.Color(nightColor),
+        });
+        return material;
+      }
+
+      function cssFromColor(color) {
+        return `#${color.getHexString()}`;
+      }
+
+      function createSkyEnvironmentSource(width = 1024, height = 512) {
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.mapping = THREE.EquirectangularReflectionMapping;
+        return { canvas, ctx, texture };
+      }
+
+      function drawSunOrMoon(ctx, size, state, mode, animationTime = 0) {
+        if (state.daylight > 0.1) {
+          const x = size * (mode === "clerestory" ? 0.68 : 0.76);
+          const y = size * (mode === "clerestory" ? 0.2 : 0.26);
+          const glow = ctx.createRadialGradient(x, y, 20, x, y, size * 0.18);
+          glow.addColorStop(0, `rgba(255, 240, 204, ${0.45 * state.daylight})`);
+          glow.addColorStop(0.45, `rgba(255, 221, 166, ${0.22 * state.daylight})`);
+          glow.addColorStop(1, "rgba(255, 221, 166, 0)");
+          ctx.fillStyle = glow;
+          ctx.beginPath();
+          ctx.arc(x, y, size * 0.18, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          const x = size * 0.72;
+          const y = size * 0.24;
+          ctx.fillStyle = `rgba(224, 236, 255, ${0.82 * state.night})`;
+          ctx.beginPath();
+          ctx.arc(x, y, size * 0.038, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = `rgba(7, 17, 31, ${0.86 * state.night})`;
+          ctx.beginPath();
+          ctx.arc(x + size * 0.012, y - size * 0.003, size * 0.033, 0, Math.PI * 2);
+          ctx.fill();
+
+          for (let i = 0; i < 68; i++) {
+            const starX = ((i * 127) % 887) / 887 * size;
+            const starY = (((i + 9) * 83) % 430) / 430 * size * (mode === "clerestory" ? 0.8 : 0.62);
+            const twinkle = 0.55 + 0.45 * Math.sin(animationTime * 1.6 + i * 1.9);
+            const alpha = (0.12 + (i % 6) * 0.045) * state.night * twinkle;
+            const starSize = 1 + (i % 3 === 0 ? 2 : 1);
+            ctx.fillStyle = `rgba(245, 248, 255, ${alpha})`;
+            ctx.fillRect(starX, starY, starSize, starSize);
+          }
+        }
+      }
+
+      function drawMovingClouds(ctx, size, state, mode, animationTime) {
+        if (state.daylight <= 0.1) return;
+
+        const cloudCount = mode === "clerestory" ? 9 : 6;
+        const baseSpeed = mode === "clerestory" ? 0.032 : 0.024;
+        for (let i = 0; i < cloudCount; i++) {
+          const width = size * (0.18 + (i % 3) * 0.04);
+          const height = width * 0.38;
+          const speed = baseSpeed + i * 0.0045;
+          const travel = (animationTime * speed + i * 0.19) % 1;
+          const x = -width + travel * (size + width * 2);
+          const y = size * (0.11 + (i % 4) * 0.065 + (mode === "clerestory" ? 0.02 : 0.08));
+          const alpha = (mode === "clerestory" ? 0.34 : 0.24) * state.daylight;
+
+          const cloud = ctx.createRadialGradient(x, y, width * 0.08, x, y, width * 0.6);
+          cloud.addColorStop(0, `rgba(255, 255, 255, ${alpha})`);
+          cloud.addColorStop(0.55, `rgba(255, 255, 255, ${alpha * 0.65})`);
+          cloud.addColorStop(1, "rgba(255, 255, 255, 0)");
+          ctx.fillStyle = cloud;
+
+          ctx.beginPath();
+          ctx.ellipse(x, y, width * 0.38, height * 0.45, 0, 0, Math.PI * 2);
+          ctx.ellipse(x - width * 0.2, y + height * 0.04, width * 0.26, height * 0.34, 0, 0, Math.PI * 2);
+          ctx.ellipse(x + width * 0.18, y - height * 0.06, width * 0.24, height * 0.3, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      function paintSkyEnvironment(source, state, animationTime = 0) {
+        if (!source) return;
+        const { ctx, canvas, texture } = source;
+        const width = canvas.width;
+        const height = canvas.height;
+        ctx.clearRect(0, 0, width, height);
+
+        const skyTop = new THREE.Color(0x040b17).lerp(new THREE.Color(0x2d82dd), state.daylight);
+        const skyMid = new THREE.Color(0x0b1a31).lerp(new THREE.Color(0x77c0ff), state.daylight);
+        const skyBottom = new THREE.Color(0x1e3554).lerp(new THREE.Color(0xe8f6ff), state.daylight);
+        const gradient = ctx.createLinearGradient(0, 0, 0, height);
+        gradient.addColorStop(0, cssFromColor(skyTop));
+        gradient.addColorStop(0.56, cssFromColor(skyMid));
+        gradient.addColorStop(1, cssFromColor(skyBottom));
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, width, height);
+
+        if (state.daylight > 0.08) {
+          const sunX = width * 0.72;
+          const sunY = height * 0.28;
+          const sunGlow = ctx.createRadialGradient(sunX, sunY, 24, sunX, sunY, height * 0.28);
+          sunGlow.addColorStop(0, `rgba(255, 244, 214, ${0.42 * state.daylight})`);
+          sunGlow.addColorStop(0.42, `rgba(255, 227, 173, ${0.22 * state.daylight})`);
+          sunGlow.addColorStop(1, "rgba(255, 227, 173, 0)");
+          ctx.fillStyle = sunGlow;
+          ctx.beginPath();
+          ctx.arc(sunX, sunY, height * 0.28, 0, Math.PI * 2);
+          ctx.fill();
+
+          for (let i = 0; i < 10; i++) {
+            const widthScale = 0.16 + (i % 4) * 0.05;
+            const cloudWidth = width * widthScale;
+            const cloudHeight = cloudWidth * 0.2;
+            const speed = 0.012 + i * 0.0018;
+            const x = -cloudWidth + ((animationTime * speed + i * 0.14) % 1) * (width + cloudWidth * 2);
+            const y = height * (0.18 + (i % 5) * 0.08);
+            const alpha = (0.16 + (i % 3) * 0.04) * state.daylight;
+            const cloud = ctx.createRadialGradient(x, y, cloudWidth * 0.08, x, y, cloudWidth * 0.58);
+            cloud.addColorStop(0, `rgba(255, 255, 255, ${alpha})`);
+            cloud.addColorStop(0.55, `rgba(255, 255, 255, ${alpha * 0.7})`);
+            cloud.addColorStop(1, "rgba(255, 255, 255, 0)");
+            ctx.fillStyle = cloud;
+            ctx.beginPath();
+            ctx.ellipse(x, y, cloudWidth * 0.36, cloudHeight * 0.56, 0, 0, Math.PI * 2);
+            ctx.ellipse(x - cloudWidth * 0.16, y + cloudHeight * 0.03, cloudWidth * 0.22, cloudHeight * 0.44, 0, 0, Math.PI * 2);
+            ctx.ellipse(x + cloudWidth * 0.18, y - cloudHeight * 0.05, cloudWidth * 0.24, cloudHeight * 0.42, 0, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        } else {
+          const moonX = width * 0.7;
+          const moonY = height * 0.28;
+          ctx.fillStyle = `rgba(228, 238, 255, ${0.84 * state.night})`;
+          ctx.beginPath();
+          ctx.arc(moonX, moonY, height * 0.038, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = `rgba(7, 17, 31, ${0.88 * state.night})`;
+          ctx.beginPath();
+          ctx.arc(moonX + height * 0.012, moonY - height * 0.003, height * 0.032, 0, Math.PI * 2);
+          ctx.fill();
+
+          for (let i = 0; i < 120; i++) {
+            const starX = ((i * 127) % 4093) / 4093 * width;
+            const starY = (((i + 9) * 83) % 1531) / 1531 * height * 0.86;
+            const twinkle = 0.5 + 0.5 * Math.sin(animationTime * 1.4 + i * 1.7);
+            const alpha = (0.1 + (i % 5) * 0.045) * state.night * twinkle;
+            const starSize = i % 9 === 0 ? 2.4 : i % 4 === 0 ? 1.7 : 1.1;
+            ctx.fillStyle = `rgba(245, 248, 255, ${alpha})`;
+            ctx.fillRect(starX, starY, starSize, starSize);
+          }
+        }
+
+        texture.needsUpdate = true;
+      }
+
+      function paintExteriorSurface(surface, state, animationTime = 0) {
+        const { ctx, canvas, texture, mode } = surface;
+        const size = canvas.width;
+        ctx.clearRect(0, 0, size, size);
+
+        const skyTop = new THREE.Color(0x06101d).lerp(new THREE.Color(0x3d8fe8), state.daylight);
+        const skyMid = new THREE.Color(0x10213b).lerp(new THREE.Color(0x93d0ff), state.daylight);
+        const skyBottom = new THREE.Color(0x263a54).lerp(new THREE.Color(0xf0f9ff), state.daylight);
+        const sky = ctx.createLinearGradient(0, 0, 0, size * 0.72);
+        sky.addColorStop(0, cssFromColor(skyTop));
+        sky.addColorStop(0.5, cssFromColor(skyMid));
+        sky.addColorStop(1, cssFromColor(skyBottom));
+        ctx.fillStyle = sky;
+        ctx.fillRect(0, 0, size, size);
+
+        drawSunOrMoon(ctx, size, state, mode, animationTime);
+        drawMovingClouds(ctx, size, state, mode, animationTime);
+
+        const haze = ctx.createLinearGradient(0, size * 0.44, 0, size * 0.7);
+        haze.addColorStop(0, `rgba(255, 225, 182, ${0.26 * state.daylight})`);
+        haze.addColorStop(1, "rgba(255, 225, 182, 0)");
+        ctx.fillStyle = haze;
+        ctx.fillRect(0, size * 0.4, size, size * 0.3);
+
+        if (mode === "forest") {
+          const horizon = size * 0.58;
+          const ground = new THREE.Color(0x18222f).lerp(new THREE.Color(0x9fbe8a), state.daylight);
+          ctx.fillStyle = cssFromColor(ground);
+          ctx.fillRect(0, horizon, size, size - horizon);
+
+          const ridge = new THREE.Color(0x101924).lerp(new THREE.Color(0x739467), state.daylight);
+          ctx.fillStyle = cssFromColor(ridge);
+          ctx.beginPath();
+          ctx.moveTo(0, horizon + 40);
+          ctx.lineTo(size * 0.3, horizon - 10);
+          ctx.lineTo(size * 0.6, horizon + 30);
+          ctx.lineTo(size, horizon - 5);
+          ctx.lineTo(size, size);
+          ctx.lineTo(0, size);
+          ctx.closePath();
+          ctx.fill();
+
+          for (let i = 0; i < 14; i++) {
+            const x = 40 + i * 70 + (i % 3) * 12;
+            const y = horizon + 10 + (i % 4) * 16;
+            const h = 140 + (i % 5) * 20;
+            const w = 40 + (i % 4) * 6;
+            const treeColor = new THREE.Color(0x0e1520).lerp(new THREE.Color(0x556f47), state.daylight);
+            ctx.fillStyle = cssFromColor(treeColor);
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineTo(x - w * 0.4, y + h);
+            ctx.lineTo(x + w * 0.4, y + h);
+            ctx.closePath();
+            ctx.fill();
+          }
+
+          for (let i = 0; i < 18; i++) {
+            const cx = ((i * 79) % 997) / 997 * size;
+            const cy = horizon + 24 + (((i + 4) * 41) % 240);
+            const radius = 26 + (i % 6) * 5;
+            ctx.fillStyle = `rgba(${Math.round(18 + state.daylight * 58)}, ${Math.round(28 + state.daylight * 74)}, ${Math.round(32 + state.daylight * 32)}, ${0.84 - state.night * 0.22})`;
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        } else {
+          const lowerAtmosphere = ctx.createLinearGradient(0, size * 0.68, 0, size);
+          lowerAtmosphere.addColorStop(0, `rgba(255, 255, 255, ${0.04 * state.daylight})`);
+          lowerAtmosphere.addColorStop(0.55, `rgba(182, 214, 255, ${0.18 * state.daylight})`);
+          lowerAtmosphere.addColorStop(1, `rgba(12, 20, 34, ${0.12 * state.night})`);
+          ctx.fillStyle = lowerAtmosphere;
+          ctx.fillRect(0, size * 0.68, size, size * 0.32);
+        }
+
+        texture.needsUpdate = true;
+      }
+
+      function updateExteriorAnimation(animationTime = 0, force = false) {
+        if (!currentTimeOfDayState || !dynamicExteriorSurfaces.length) return;
+        if (!force && animationTime - lastExteriorAnimationTick < 0.12) return;
+        lastExteriorAnimationTick = animationTime;
+        dynamicExteriorSurfaces.forEach((surface) => {
+          paintExteriorSurface(surface, currentTimeOfDayState, animationTime);
+        });
+      }
+
+      function updateSceneEnvironment(animationTime = 0, force = false) {
+        if (!currentTimeOfDayState || !skyEnvironmentSource) return;
+        if (!force && animationTime - lastEnvironmentAnimationTick < 0.85) return;
+        lastEnvironmentAnimationTick = animationTime;
+        paintSkyEnvironment(skyEnvironmentSource, currentTimeOfDayState, animationTime);
+        const nextTarget = pmremGenerator.fromEquirectangular(skyEnvironmentSource.texture);
+        if (skyEnvironmentRenderTarget) {
+          skyEnvironmentRenderTarget.dispose();
+        }
+        skyEnvironmentRenderTarget = nextTarget;
+        scene.environment = skyEnvironmentRenderTarget.texture;
+      }
+
+      function updateTimeOfDay(force = false) {
+        const now = new Date();
+        const key = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${now.getHours()}-${now.getMinutes()}`;
+        if (!force && key === lastTimeOfDayKey) return;
+        lastTimeOfDayKey = key;
+
+        const state = getTimeOfDayState(now);
+        currentTimeOfDayState = state;
+        const bgDay = new THREE.Color(0xe2ecf5);
+        const bgNight = new THREE.Color(0x0c1520);
+        scene.background.copy(bgNight).lerp(bgDay, state.daylight);
+        renderer.toneMappingExposure = THREE.MathUtils.lerp(0.78, 1.08, state.daylight);
+
+        timeAwareLights.forEach((light) => {
+          const dayIntensity = light.userData.dayIntensity ?? light.userData.baseIntensity ?? light.intensity;
+          const nightIntensity = light.userData.nightIntensity ?? dayIntensity;
+          light.userData.baseIntensity = THREE.MathUtils.lerp(nightIntensity, dayIntensity, state.daylight);
+          light.color.copy(light.userData.nightColor).lerp(light.userData.dayColor, state.daylight);
+          if (light.isHemisphereLight && light.userData.dayGroundColor && light.userData.nightGroundColor) {
+            light.groundColor.copy(light.userData.nightGroundColor).lerp(
+              light.userData.dayGroundColor,
+              state.daylight
+            );
+          }
+        });
+
+        timeAwareGlassMaterials.forEach((entry) => {
+          entry.material.transmission = THREE.MathUtils.lerp(
+            entry.nightTransmission,
+            entry.dayTransmission,
+            state.daylight
+          );
+          entry.material.roughness = THREE.MathUtils.lerp(
+            entry.nightRoughness,
+            entry.dayRoughness,
+            state.daylight
+          );
+          entry.material.envMapIntensity = THREE.MathUtils.lerp(
+            entry.nightEnvMapIntensity,
+            entry.dayEnvMapIntensity,
+            state.daylight
+          );
+          entry.material.color.copy(entry.nightColor).lerp(entry.dayColor, state.daylight);
+        });
+
+        sunlightPatchMat.opacity = state.daylight * 0.96;
+        setLightGroup(roomLights, roomLightsOn);
       }
 
       function getPaintingViewingPose(painting, distanceOverride) {
@@ -3628,6 +4154,12 @@
         daylight.position.set(0, ROOM.height * 0.8, -ROOM.depth / 2 - 3);
         daylight.target.position.set(0, ROOM.height * 0.6, 0);
         registerLight(daylight, roomLights);
+        registerTimeAwareLight(daylight, {
+          dayIntensity: 0.3,
+          nightIntensity: 0.0,
+          dayColor: 0xdce9ff,
+          nightColor: 0x203148,
+        });
         scene.add(daylight);
         scene.add(daylight.target);
 
@@ -3641,22 +4173,24 @@
           roughness: 0.55,
           metalness: 0.05,
         });
-        const glassMat = new THREE.MeshPhysicalMaterial({
-          color: 0xc9ddff,
-          roughness: 0.06,
-          metalness: 0.0,
-          transmission: 0.78,
-          thickness: 0.14,
-          clearcoat: 0.75,
-          clearcoatRoughness: 0.08,
-          transparent: true,
-          opacity: 0.24,
+        const glassMat = createTimeAwareGlassMaterial({
+          dayColor: 0xffffff,
+          nightColor: 0xf1f6ff,
+          dayTransmission: 0.997,
+          nightTransmission: 0.982,
+          dayRoughness: 0.006,
+          nightRoughness: 0.02,
+          dayEnvMapIntensity: 1.4,
+          nightEnvMapIntensity: 0.5,
+          thickness: 0.024,
+          ior: 1.5,
+          clearcoat: 0.18,
+          clearcoatRoughness: 0.018,
         });
 
-        const forestTexture = makeForestTexture();
-        forestTexture.colorSpace = THREE.SRGBColorSpace;
+        const forestSurface = createDynamicExteriorSurface({ mode: "forest" });
         const forestMat = new THREE.MeshBasicMaterial({
-          map: forestTexture,
+          map: forestSurface.texture,
         });
 
         const windowWidth = WINDOW.width;
@@ -3705,7 +4239,7 @@
           new THREE.PlaneGeometry(width * 1.2, height * 1.2),
           forestMat
         );
-        outside.position.z = frameDepth * 0.05;
+        outside.position.z = -frameDepth * 0.46;
         outside.renderOrder = 1;
 
         const mullionMat = trimMat;
@@ -3740,6 +4274,12 @@
         light.position.addScaledVector(normal, 1.2);
         light.position.y = position.y + 0.1;
         registerLight(light, roomLights);
+        registerTimeAwareLight(light, {
+          dayIntensity: 0.52,
+          nightIntensity: 0.04,
+          dayColor: 0xd9e6ff,
+          nightColor: 0x52688b,
+        });
         scene.add(light);
       }
 
@@ -3806,6 +4346,12 @@
           const light = new THREE.PointLight(0xfff1dd, 0.85, 7);
           light.position.set(0, ROOM.height - 1.05, z);
           registerLight(light, roomLights);
+          registerTimeAwareLight(light, {
+            dayIntensity: 0.72,
+            nightIntensity: 0.98,
+            dayColor: 0xfff1dd,
+            nightColor: 0xffe2b0,
+          });
           scene.add(light);
         });
       }

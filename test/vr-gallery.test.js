@@ -73,6 +73,25 @@ test("web app launch is configured for fullscreen-capable installs", () => {
   assert.ok(sw.includes("https://unpkg.com"));
 });
 
+test("vault clerestory glazing reacts to local time of day", () => {
+  assert.match(html, /function\s+getTimeOfDayState\s*\(/);
+  assert.match(html, /const\s+now\s*=\s*new Date\(\)/);
+  assert.match(html, /function\s+buildVaultClerestory\s*\(/);
+  assert.match(html, /createDynamicExteriorSurface\(\{\s*mode:\s*"clerestory"\s*\}\)/);
+  assert.match(html, /new THREE\.PMREMGenerator\(renderer\)/);
+  assert.match(html, /function\s+createSkyEnvironmentSource\s*\(/);
+  assert.match(html, /function\s+paintSkyEnvironment\s*\(/);
+  assert.match(html, /function\s+drawMovingClouds\s*\(/);
+  assert.match(html, /function\s+updateExteriorAnimation\s*\(/);
+  assert.match(html, /function\s+updateSceneEnvironment\s*\(/);
+  assert.match(html, /function\s+updateTimeOfDay\s*\(/);
+  assert.match(html, /updateExteriorAnimation\(elapsed\)/);
+  assert.match(html, /updateSceneEnvironment\(elapsed\)/);
+  assert.match(html, /scene\.environment\s*=/);
+  assert.match(html, /state\.night\s*\*/);
+  assert.match(html, /sunlightPatchMat\.opacity\s*=/);
+});
+
 test("legacy titin audio easter egg is removed", () => {
   assert.doesNotMatch(html, /assets\/titin\.m4a/);
   assert.doesNotMatch(html, /const\s+EASTER_EGG\s*=/);
