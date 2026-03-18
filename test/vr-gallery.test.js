@@ -118,6 +118,10 @@ test("quest uses a simplified glazing and environment path", () => {
   assert.match(html, /questSimple:\s*true/);
   assert.match(html, /if\s*\(questBrowser && renderer\.xr\.isPresenting && !force\)\s*return;/);
   assert.match(html, /if\s*\(questBrowser\)\s*return;\s*[\s\S]*pmremGenerator\.fromEquirectangular/);
+  assert.match(html, /buildVaultSurfaceGeometry\(radius,\s*centerY,\s*questBrowser \? 72 : 120,\s*questBrowser \? 28 : 48\)/);
+  assert.match(html, /if\s*\(questBrowser\)\s*{\s*ceilingFrescoMaterial = ceilingMat;\s*ceilingFrescoMesh = vault;/);
+  assert.match(html, /if\s*\(!questBrowser\)\s*{\s*group\.add\(glass\);/);
+  assert.match(html, /if\s*\(!questBrowser\)\s*{\s*const glassMat = new THREE\.MeshPhysicalMaterial/);
 });
 
 test("legacy titin audio easter egg is removed", () => {
