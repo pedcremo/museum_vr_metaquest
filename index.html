@@ -2182,25 +2182,29 @@
         const radius = (halfSpan * halfSpan + rise * rise) / (2 * rise);
         const centerY = WALL.height - (radius - rise);
 
-        const geometry = buildVaultSurfaceGeometry(radius, centerY, 120, 48);
+        const geometry = buildVaultSurfaceGeometry(radius, centerY, questBrowser ? 72 : 120, questBrowser ? 28 : 48);
 
         const vault = new THREE.Mesh(geometry, ceilingMat);
 
-        ceilingFrescoMaterial = new THREE.MeshStandardMaterial({
-          color: 0xffffff,
-          roughness: 0.85,
-          metalness: 0.0,
-          side: THREE.FrontSide,
-          polygonOffset: true,
-          polygonOffsetFactor: -1,
-          polygonOffsetUnits: -1,
-        });
-        const fresco = new THREE.Mesh(geometry.clone(), ceilingFrescoMaterial);
-        ceilingFrescoMesh = fresco;
-
         const group = new THREE.Group();
         group.add(vault);
-        group.add(fresco);
+        if (questBrowser) {
+          ceilingFrescoMaterial = ceilingMat;
+          ceilingFrescoMesh = vault;
+        } else {
+          ceilingFrescoMaterial = new THREE.MeshStandardMaterial({
+            color: 0xffffff,
+            roughness: 0.85,
+            metalness: 0.0,
+            side: THREE.FrontSide,
+            polygonOffset: true,
+            polygonOffsetFactor: -1,
+            polygonOffsetUnits: -1,
+          });
+          const fresco = new THREE.Mesh(geometry.clone(), ceilingFrescoMaterial);
+          ceilingFrescoMesh = fresco;
+          group.add(fresco);
+        }
         buildVaultEndPanels(radius, centerY).forEach((panel) => group.add(panel));
         return group;
       }
@@ -2323,7 +2327,9 @@
         glass.material.depthWrite = false;
 
         group.add(exterior);
-        group.add(glass);
+        if (!questBrowser) {
+          group.add(glass);
+        }
         group.add(frame);
 
         const mullionMat = new THREE.MeshStandardMaterial({
@@ -2385,6 +2391,11 @@
             texture.center.set(0.5, 0.5);
 
             ceilingFrescoMaterial.map = texture;
+            if (questBrowser) {
+              ceilingFrescoMaterial.bumpMap = null;
+              ceilingFrescoMaterial.roughnessMap = null;
+              ceilingFrescoMaterial.roughness = 0.88;
+            }
             ceilingFrescoMaterial.needsUpdate = true;
           },
           undefined,
@@ -4505,16 +4516,6 @@
           roughness: 0.3,
           metalness: 0.8,
         });
-        const glassMat = new THREE.MeshPhysicalMaterial({
-          color: 0xffffff,
-          roughness: 0.05,
-          metalness: 0.0,
-          transmission: 0.92,
-          thickness: 0.2,
-          ior: 1.5,
-          transparent: true,
-          clearcoat: 0.6,
-        });
         const glowMat = new THREE.MeshStandardMaterial({
           color: 0xfff1d0,
           emissive: new THREE.Color(0xffe3b5),
@@ -4531,33 +4532,54 @@
         chain.position.y = -0.34;
         group.add(chain);
 
-        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.025, 12, 48), metalMat);
+        const ring = new THREE.Mesh(
+          new THREE.TorusGeometry(0.36, 0.025, 12, questBrowser ? 24 : 48),
+          metalMat
+        );
         ring.rotation.x = Math.PI / 2;
         ring.position.y = -0.7;
         group.add(ring);
 
-        const innerRing = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.02, 12, 48), metalMat);
+        const innerRing = new THREE.Mesh(
+          new THREE.TorusGeometry(0.2, 0.02, 12, questBrowser ? 24 : 48),
+          metalMat
+        );
         innerRing.rotation.x = Math.PI / 2;
         innerRing.position.y = -0.64;
         group.add(innerRing);
 
-        const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.08, 16, 16), glowMat);
+        const bulb = new THREE.Mesh(
+          new THREE.SphereGeometry(0.08, questBrowser ? 10 : 16, questBrowser ? 10 : 16),
+          glowMat
+        );
         bulb.position.y = -0.72;
         group.add(bulb);
 
-        const droplets = 12;
-        for (let i = 0; i < droplets; i++) {
-          const angle = (i / droplets) * Math.PI * 2;
-          const drop = new THREE.Mesh(new THREE.SphereGeometry(0.06, 16, 16), glassMat);
-          drop.scale.set(0.7, 1.25, 0.7);
-          drop.position.set(Math.cos(angle) * 0.36, -0.9, Math.sin(angle) * 0.36);
-          group.add(drop);
-        }
+        if (!questBrowser) {
+          const glassMat = new THREE.MeshPhysicalMaterial({
+            color: 0xffffff,
+            roughness: 0.05,
+            metalness: 0.0,
+            transmission: 0.92,
+            thickness: 0.2,
+            ior: 1.5,
+            transparent: true,
+            clearcoat: 0.6,
+          });
+          const droplets = 12;
+          for (let i = 0; i < droplets; i++) {
+            const angle = (i / droplets) * Math.PI * 2;
+            const drop = new THREE.Mesh(new THREE.SphereGeometry(0.06, 16, 16), glassMat);
+            drop.scale.set(0.7, 1.25, 0.7);
+            drop.position.set(Math.cos(angle) * 0.36, -0.9, Math.sin(angle) * 0.36);
+            group.add(drop);
+          }
 
-        const centerDrop = new THREE.Mesh(new THREE.SphereGeometry(0.08, 18, 18), glassMat);
-        centerDrop.scale.set(0.7, 1.4, 0.7);
-        centerDrop.position.y = -0.98;
-        group.add(centerDrop);
+          const centerDrop = new THREE.Mesh(new THREE.SphereGeometry(0.08, 18, 18), glassMat);
+          centerDrop.scale.set(0.7, 1.4, 0.7);
+          centerDrop.position.y = -0.98;
+          group.add(centerDrop);
+        }
 
         return group;
       }
